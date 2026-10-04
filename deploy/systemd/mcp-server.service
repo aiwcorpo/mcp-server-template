@@ -1,0 +1,51 @@
+# =============================================================================
+# systemd unit (TEMPLATE) — /etc/systemd/system/mcp-server.service
+# Runs the MCP server as a hardened, non-root service on the VM.
+#   systemctl daemon-reload && systemctl enable --now mcp-server
+# =============================================================================
+[Unit]
+Description=Aiwcorpo MCP Server (Spring Boot, HTTP behind nginx)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mcp
+Group=mcp
+
+# Secrets (backend URL) are provided here, NOT in git. Per-user PATs are NOT
+# here — they arrive per request in X-PAT-* headers.
+# File mode 0600, owned by root; contains KEY=VALUE lines. See mcp-server.env.example.
+EnvironmentFile=/etc/mcp-server/mcp-server.env
+
+# Java + jar location. Binds to :8080 (plain HTTP; TLS terminated at the nginx gateway).
+ExecStart=/usr/bin/java -XX:MaxRAMPercentage=75 \
+  -jar /opt/mcp-server/current.jar \
+  --spring.profiles.active=prod \
+  --spring.config.additional-location=file:/etc/mcp-server/
+
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+# ---- Hardening (principle of least privilege) ----
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=false      # Java JIT needs W^X off; keep false
+# Only these paths are writable:
+ReadWritePaths=/var/log/mcp-server
+ReadOnlyPaths=/etc/mcp-server /opt/mcp-server
+# Restrict outbound/inbound address families if policy allows:
+# RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Logging: app logs + a separate AUDIT logger, both to stdout (journald/container captures them).
+  correlationId comes from the platform's CorrelationIdFilter (MDC).
+  For prod, swap the encoders for your org's JSON standard (e.g. logstash-logback-encoder) and route
+  the AUDIT appender to a dedicated file/SIEM stream. NEVER log secrets/tokens/PII.
+-->
+<configuration scan="true" scanPeriod="30 seconds">
+
+    <!-- Nazwa aplikacji steruje sciezka pliku logu (per-usluga): /var/log/<appName>/<appName>.log.
+         Sciezke mozna nadpisac zmienna srodowiskowa LOG_DIR. -->
+    <springProperty scope="context" name="appName" source="spring.application.name" defaultValue="mcp-server"/>
+    <property name="LOG_DIR" value="${LOG_DIR:-/var/log/${appName}}"/>
+
+    <appender name="APP" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [%X{correlationId}] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="AUDIT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} AUDIT [%X{correlationId}] %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- prod: konsola (journald) ORAZ rolling pliki pod ${LOG_DIR}.
+         app -> ${appName}.log, audit -> ${appName}-audit.log (10MB/plik, cap 500MB). -->
+    <springProfile name="prod">
+        <appender name="APP_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <file>${LOG_DIR}/${appName}.log</file>
+            <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+                <fileNamePattern>${LOG_DIR}/${appName}.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+                <maxFileSize>10MB</maxFileSize>
+                <maxHistory>14</maxHistory>
+                <totalSizeCap>500MB</totalSizeCap>
+            </rollingPolicy>
+            <encoder>
+                <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [%X{correlationId}] %logger{36} - %msg%n</pattern>
+            </encoder>
+        </appender>
+
+        <appender name="AUDIT_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <file>${LOG_DIR}/${appName}-audit.log</file>
+            <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+                <fileNamePattern>${LOG_DIR}/${appName}-audit.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+                <maxFileSize>10MB</maxFileSize>
+                <maxHistory>30</maxHistory>
+                <totalSizeCap>500MB</totalSizeCap>
+            </rollingPolicy>
+            <encoder>
+                <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} AUDIT [%X{correlationId}] %msg%n</pattern>
+            </encoder>
+        </appender>
+
+        <logger name="pl.aiwcorpo.mcp.audit" level="INFO" additivity="false">
+            <appender-ref ref="AUDIT"/>
+            <appender-ref ref="AUDIT_FILE"/>
+        </logger>
+
+        <root level="INFO">
+            <appender-ref ref="APP"/>
+            <appender-ref ref="APP_FILE"/>
+        </root>
+    </springProfile>
+
+    <!-- non-prod (local/dev): tylko konsola, bez zapisu do plikow. -->
+    <springProfile name="!prod">
+        <logger name="pl.aiwcorpo.mcp.audit" level="INFO" additivity="false">
+            <appender-ref ref="AUDIT"/>
+        </logger>
+
+        <root level="INFO">
+            <appender-ref ref="APP"/>
+        </root>
+    </springProfile>
+</configuration>

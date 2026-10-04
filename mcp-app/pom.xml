@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  mcp-app — BOOTSTRAP / deployable.
+  The only module that produces the runnable Spring Boot fat-jar (spring-boot-maven-plugin).
+  Owns @SpringBootApplication and the ToolCallbackProvider bean (registers tools from mcp-tools).
+  Security/TLS/observability/error come from mcp-platform-starter (auto-configured) — no local wiring.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>pl.aiwcorpo.mcp.example</groupId>
+        <artifactId>mcp-server-seed-parent</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+    <artifactId>mcp-app</artifactId>
+    <name>MCP Server :: App (bootstrap)</name>
+    <dependencies>
+        <dependency><groupId>${project.groupId}</groupId><artifactId>mcp-tools</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>${project.groupId}</groupId><artifactId>mcp-integration</artifactId><version>${project.version}</version></dependency>
+        <!-- The single platform dependency: brings security/TLS/observability/error + Spring AI MCP starter.
+             Version omitted on purpose — managed by mcp-platform-bom. -->
+        <dependency><groupId>pl.aiwcorpo.mcp</groupId><artifactId>mcp-platform-starter</artifactId></dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+    <build>
+        <finalName>mcp-server</finalName>   <!-- produces target/mcp-server.jar -->
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>

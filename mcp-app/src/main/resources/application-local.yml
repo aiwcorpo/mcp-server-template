@@ -1,0 +1,24 @@
+# =============================================================================
+# LOCAL DEV PROFILE (classpath fallback) — convenience for `./mvnw spring-boot:run`. NEVER in prod.
+# Dev runs plain HTTP (no in-app TLS); in real deployments TLS is terminated at the nginx gateway.
+# The backend is a static in-memory mock, so the server runs with nothing else started. To develop
+# against a real/stub backend instead, set mode: rest — callers then pass their own PAT per request
+# in the X-PAT-Example header and the adapter forwards it to base-url.
+# =============================================================================
+example:
+  backend:
+    mode: mock                        # mock (in-memory demo data) | rest
+    base-url: http://localhost:9099   # used when mode: rest
+
+# Tool guard. The policy file maps roles from the token to risk levels; the identity provider is
+# whatever OIDC provider you point MCP_OIDC_ISSUER at (a local Keycloak, a mock, your corporate IdP).
+# Without MCP_OIDC_ISSUER the server has no identity provider: every caller is anonymous, read-only.
+aiwcorpo:
+  mcp:
+    platform:
+      guard:
+        policy-file: ${MCP_GUARD_POLICY:classpath:guard-policy-local.yml}
+        oidc:
+          issuer-uri: ${MCP_OIDC_ISSUER:}            # e.g. http://localhost:8081/realms/demo
+          audiences: ${MCP_OIDC_AUDIENCE:}           # this server's identifier at the provider, e.g. mcp-example
+          subject-claim: ${MCP_OIDC_SUBJECT_CLAIM:preferred_username}

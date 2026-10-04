@@ -1,0 +1,42 @@
+# =============================================================================
+# GUARD POLICY — local profile. What a role from the identity provider is worth on THIS server.
+#
+# There are no users or tokens here. Who a caller is comes from the access token issued by the
+# identity provider (see aiwcorpo.mcp.platform.guard.oidc in application-local.yml); this file maps
+# the roles / groups / scopes found in that token to a risk level.
+#
+# A policy that is a real file is re-read when it changes — no restart. To try it locally:
+#   export MCP_GUARD_POLICY=file:$PWD/mcp-app/src/main/resources/guard-policy-local.yml
+# then edit the file while the server runs. In production keep the file outside the jar, root-owned.
+# =============================================================================
+
+# No token at all: read-only | update | destructive | deny
+anonymous: read-only
+
+# A valid token whose roles match nothing below. Being logged in is not, by itself, a privilege.
+authenticated: read-only
+
+# PAT mode (MCP_AUTH_MODE=pat) only: every caller who presents an X-PAT-* header. The server cannot
+# verify a PAT or tell holders apart by role, so this is one level for all of them — keep it modest.
+pat: update
+
+# Role (or group, or scope) name exactly as it appears in the token  ->  what it grants here.
+roles:
+  mcp-operator:               # may change things that can be changed back
+    max-risk: update
+  mcp-admin:                  # may run destructive tools, after confirming each one
+    max-risk: destructive
+
+# Per-tool rules. Uncomment to try them live.
+tools: {}
+#  example_rename:
+#    enabled: false           # kill switch: off for everyone, effective on the next call
+#  example_rename:
+#    confirmation: true       # require the one-time code for this tool too
+#  example_rename:
+#    risk: destructive        # raise (never lower) the risk declared in code
+
+confirmation:
+  required-from: destructive  # risk level from which the user must confirm | never
+  ttl-seconds: 120
+  max-attempts: 3

@@ -1,0 +1,18 @@
+# Build
+target/
+!.mvn/wrapper/maven-wrapper.jar
+*.class
+# IDE
+.idea/
+*.iml
+.vscode/
+# Secrets / TLS material — NEVER commit
+*.p12
+*.jks
+*.pem
+*.key
+*.crt
+**/mcp-server.env
+!deploy/systemd/mcp-server.env.example
+# Logs
+*.log

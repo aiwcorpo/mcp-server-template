@@ -1,8 +1,8 @@
 # STATUS - mcp-server-template (ws-03)
 
-M1: osiągnięty (2026-10-27) - template na starterze 3.0.0-alpha-3, `get_record` z poświadczeniem z C3, 401 bez JWT, `new-server.sh demo` buduje się i przechodzi testy bez zmian ręcznych.
+M1: osiągnięty (2026-10-27) - template na starterze 3.0.0-alpha-4, `get_record` z poświadczeniem z C3, 401 bez JWT, `new-server.sh demo` buduje się i przechodzi testy bez zmian ręcznych.
 
-Starter: BOM `pl.aiwcorpo.mcp:mcp-platform-bom:3.0.0-alpha-3` (kontrakty 2.0.2, Spring Boot 4.1.0, Spring AI
+Starter: BOM `pl.aiwcorpo.mcp:mcp-platform-bom:3.0.0-alpha-4` (kontrakty 2.0.2, Spring Boot 4.1.0, Spring AI
 2.0.0, Java 25). M2 nie jest zaczęty.
 
 ## Co działa
@@ -14,7 +14,12 @@ Starter: BOM `pl.aiwcorpo.mcp:mcp-platform-bom:3.0.0-alpha-3` (kontrakty 2.0.2, 
   `CredentialContext.require("example")` + `credential::applyTo`, timeouty (2 s / 10 s), bez przekierowań,
   błędy systemu bez treści; 404 i 403 -> `not_found_or_denied` (ten sam tekst), 401 -> `credential_required`.
 - Konfiguracja bazowa produkcyjna: mTLS (`client-auth: need`, bundle z `MCP_TLS_*`), JWKS po TLS z CA
-  wewnętrznym, `jti` w Redisie (`MCP_REDIS_*`); profil `dev` tylko dla testów (bez TLS).
+  wewnętrznym, `jti` w Redisie (`MCP_REDIS_*`). Profil `dev` (testy i uruchomienie lokalne): HTTP na loopback,
+  bez mTLS, `jti` w pamięci, klucze testowe, domyślne adresy JWKS/portalu/backendu.
+- README: "Uruchomienie lokalne bez środowiska" (profil `dev`, bez sekretów i certyfikatów,
+  `$JAVA_HOME/bin/java`, port przez `MCP_PORT`) i "Uruchomienie z mcp-platform-dev (mTLS)" (`MCP_PLATFORM_DEV`,
+  tylko systemy z `SystemId`). Oba sprawdzone w czystych kopiach z `new-server.sh` (`demo` w `dev`, `jira` z
+  mTLS): health 200, `POST /mcp` bez JWT 401. Poprawka po smoke Haiku (FAIL na tym kroku).
 - Testy (`./mvnw verify`, JDK 25, bez Dockera): 11, 0 błędów.
   - `GetRecordToolTest` (8): poświadczenie z C3 dochodzi do backendu, `readOnlyHint`, brak poświadczenia i 401
     systemu, 404 = 403, zły `recordId` nie dochodzi do backendu, adapter bez poświadczenia poza żądaniem,
@@ -23,9 +28,9 @@ Starter: BOM `pl.aiwcorpo.mcp:mcp-platform-bom:3.0.0-alpha-3` (kontrakty 2.0.2, 
     `X-MCP-Credential`); JWT innego serwera, innego narzędzia, wariant serwisowy, przeterminowany -> 401; bez
     JWT tylko health.
   - `ExampleServiceTest` (2).
-- Smoke konfiguracji produkcyjnej na hoście z `mcp-platform-dev` (certyfikat `mcp-jira`, Redis 16379): start,
+- Smoke konfiguracji produkcyjnej na hoście z `mcp-platform-dev` (wygenerowany `mcp-jira`, Redis 16379): start,
   `/actuator/health` po mTLS z certyfikatem gateway'a 200, `POST /mcp` bez JWT 401, bez certyfikatu klienta
-  handshake zerwany. Pełnego przebiegu z prawdziwym gateway'em nie robiłem (DoD briefu, test integracyjny z
+  handshake zerwany. Sam template (`example`) od alpha-4 poza `dev` nie wstaje (system spoza `SystemId`). Pełnego przebiegu z prawdziwym gateway'em nie robiłem (DoD briefu, test integracyjny z
   ws-01; plan na M2).
 - `new-server.sh <system> [katalog]` sprawdzony w katalogu tymczasowym poza repo dla `demo`, `jira` i `gitlab`:
   każdy `./mvnw verify` od zera (świeży `git init`), 11 testów, 0 błędów, w projekcie nie zostaje `example`.
@@ -85,6 +90,8 @@ Co serwer uzupełnia (szczegóły w `docs/nowy-serwer.md`):
 
 ## Znane ograniczenia
 
+- Od startera alpha-4 serwer systemu spoza `SystemId` (template `example`, próbny `demo`) nie wstaje poza
+  profilem `dev` (w `dev` ostrzeżenie `event=platform_config_warning`).
 - `credential_required` tylko dla systemów z kontraktu. Starter wysyła wyłącznie błędy zgodne z
   `tool-error.schema.json`, gdzie `system` to zamknięta lista `SystemId` (jira, confluence, gitlab, servicedesk,
   opensearch). Dla `example` (template) i `demo` (DoD) brak poświadczenia daje `internal_error`
@@ -92,12 +99,13 @@ Co serwer uzupełnia (szczegóły w `docs/nowy-serwer.md`):
   jest na liście (czytanej z `common.schema.json` z jara kontraktów), a dla innych `internal_error`; ścieżkę
   kodu potwierdza dodatkowo `CredentialRequiredException` w logu i test adaptera. Sprawdzone: wygenerowane
   `jira` i `gitlab` dostają pełny `credential_required`.
-- W `mcp-platform-dev` nie ma certyfikatu ani użytkownika Redis dla `mcp-example`; template uruchamia się tam z
-  certyfikatem `mcp-jira` (README).
+- W `mcp-platform-dev` są certyfikaty i użytkownicy Redisa tylko dla pięciu systemów `SystemId`.
 
 ## Czego potrzebują inni
 
-- ws-02 (starter), bez blokowania M1:
+- ws-02 (starter): oba punkty poniżej zamknięte w 3.0.0-alpha-4 (log `tool_failed` bez ciała błędów HTTP,
+  system spoza `SystemId` -> odmowa startu poza `dev`). `defaultStatusHandler` w adapterze zostaje jako druga
+  warstwa. Opis pierwotnego zgłoszenia:
   1. Treść odpowiedzi błędu backendu trafia do logu `event=tool_failed`: Spring AI opakowuje wyjątek w
      `ToolExecutionException`, którego komunikat to komunikat `HttpServerErrorException` razem z ciałem
      odpowiedzi; `McpErrorMapper.describeChain` loguje go dosłownie (poświadczenie jest zredagowane, reszta

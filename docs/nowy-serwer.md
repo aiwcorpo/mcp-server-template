@@ -13,7 +13,14 @@ export JAVA_HOME=/opt/homebrew/Cellar/openjdk@25/25.0.4.1/libexec/openjdk.jdk/Co
 ./mvnw verify                            # przechodzi bez zmian ręcznych
 ```
 
+Uruchomienie wygenerowanego serwera opisuje jego README (ta treść trafia do każdego serwera): "Uruchomienie
+lokalne bez środowiska" (profil `dev`, bez sekretów i certyfikatów: health 200, `POST /mcp` bez JWT 401) i
+"Uruchomienie z mcp-platform-dev (mTLS)".
+
 `<system>`: małe litery i cyfry, od litery (`jira`, `confluence`, `gitlab`, `servicedesk`, `opensearch`).
+Od startera 3.0.0-alpha-4 tylko te pięć (`SystemId` kontraktów) wstaje poza profilem `dev`; inna nazwa (np.
+`demo`) buduje się, przechodzi testy i działa w `dev` z ostrzeżeniem. Certyfikaty i użytkowników Redisa
+`mcp-platform-dev` ma tylko dla tych pięciu systemów.
 Skrypt kopiuje pliki śledzone przez git (i nowe, nieignorowane) i zamienia placeholder w treści i ścieżkach:
 
 | W template | Po `new-server.sh jira` |

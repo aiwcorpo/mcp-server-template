@@ -1,6 +1,6 @@
 # mcp-example: serwer MCP platformy
 
-Serwer MCP dla systemu `example`, zbudowany na `mcp-platform-starter` 3.0.0-alpha-3 (Java 25, Spring Boot
+Serwer MCP dla systemu `example`, zbudowany na `mcp-platform-starter` 3.0.0-alpha-4 (Java 25, Spring Boot
 4.1.0, Spring AI 2.0.0, kontrakty `mcp-contracts` 2.0.2). Stoi wyłącznie za gateway'em platformy: przyjmuje
 ruch tylko po mTLS z wewnętrznym JWT gateway'a (C2), a do systemu docelowego woła z poświadczeniem
 użytkownika, które gateway dołącza do każdego żądania (C3). Bez poprawnego JWT odpowiada 401, nie ma trybu
@@ -58,8 +58,8 @@ pola domeny i nie wkłada treści odpowiedzi systemu do żadnego komunikatu.
 ## Konfiguracja
 
 Konfiguracja bazowa (`mcp-app/src/main/resources/application.yml`) jest produkcyjna: mTLS, JWKS gateway'a po
-TLS z CA wewnętrznym, `jti` w Redisie. Profil `dev` wyłącza tylko TLS i służy testom; pozostałe ułatwienia
-(klucze testowe, `jti` w pamięci, `mtls.required=false`) daje `TestGateway`, a starter odrzuca je poza `dev`.
+TLS z CA wewnętrznym, `jti` w Redisie. Profil `dev` (`application-dev.yml`, testy i uruchomienie lokalne)
+wyłącza TLS i mTLS, trzyma `jti` w pamięci i dopuszcza klucze testowe; starter odrzuca te ustawienia poza `dev`.
 
 | Zmienna | Znaczenie | Domyślnie |
 | --- | --- | --- |
@@ -76,27 +76,68 @@ Endpoint MCP to `/mcp` (domyślne ustawienie startera, tak jak oczekuje gateway:
 https://mcp-example.internal:8443/mcp`). Bez JWT odpowiada tylko `/actuator/health` (i `liveness`,
 `readiness`), ale TLS i tak wymaga certyfikatu klienta z CA wewnętrznego.
 
-Serwer nie wstaje bez `MCP_GATEWAY_JWKS_URI`, `MCP_CONNECT_URL`, `MCP_EXAMPLE_URL` i plików TLS.
+Poza profilem `dev` serwer nie wstaje bez `MCP_GATEWAY_JWKS_URI` (tylko `https`), `MCP_CONNECT_URL`,
+`MCP_EXAMPLE_URL` i plików TLS, a od startera 3.0.0-alpha-4 także wtedy, gdy system nie jest na liście `SystemId`
+kontraktów (`jira`, `confluence`, `gitlab`, `servicedesk`, `opensearch`). Serwer systemu spoza tej listy
+(także sam template) działa więc tylko w profilu `dev`, z ostrzeżeniem w logu.
 
-Na hoście ze środowiskiem `mcp-platform-dev` (sprawdzone 2026-10-27 w template). Środowisko ma certyfikaty i
-użytkowników Redisa dla `mcp-jira`, `mcp-confluence`, `mcp-gitlab`, `mcp-servicedesk` i `mcp-opensearch`;
-poniżej użyty jest certyfikat `mcp-jira`, serwer innego systemu bierze `certs/mcp-<system>` i ustawia
-`MCP_REDIS_USER`/`MCP_REDIS_PASSWORD` (`REDIS_MCP_<SYSTEM>_PASSWORD` z `.secrets/dev.env`), inaczej wywołania z
-JWT kończą się 503 (magazyn `jti` niedostępny):
+`java` w `PATH` może być starsza niż 25 (wtedy `UnsupportedClassVersionError`), dlatego poniżej zawsze
+`$JAVA_HOME/bin/java`.
+
+## Uruchomienie lokalne bez środowiska
+
+Profil `dev` (musi być jedynym aktywnym profilem): zwykłe HTTP na 127.0.0.1, `jti` w pamięci, bez Redisa,
+certyfikatów i sekretów. Gateway'a nie ma, więc każde żądanie z JWT kończy się 503 (JWKS niedostępny); ten tryb
+służy do sprawdzenia, że serwer wstaje i odrzuca ruch bez JWT. Narzędzia sprawdzają testy (`./mvnw verify`).
 
 ```bash
-dev=../mcp-platform-dev
-export MCP_TLS_STORE_PASSWORD="$(grep '^TLS_STORE_PASSWORD=' $dev/.secrets/dev.env | cut -d= -f2-)"
-export MCP_TLS_KEYSTORE=$dev/certs/mcp-jira/keystore.p12 MCP_TLS_TRUSTSTORE=$dev/certs/ca/truststore.p12
-export MCP_PORT=18490 MCP_BIND=127.0.0.1 MCP_REDIS_PORT=16379 MCP_EXAMPLE_URL=http://localhost:18081
-export MCP_GATEWAY_JWKS_URI=https://localhost:18445/.well-known/jwks.json
-export MCP_CONNECT_URL='http://localhost:18090/connections?system={system}'
-java -jar mcp-app/target/mcp-example.jar
-curl --cacert $dev/certs/ca/ca.crt --cert $dev/certs/mcp-gateway/tls.crt --key $dev/certs/mcp-gateway/tls.key \
-     --resolve mcp-jira.internal:18490:127.0.0.1 https://mcp-jira.internal:18490/actuator/health   # 200
+export JAVA_HOME=/opt/homebrew/Cellar/openjdk@25/25.0.4.1/libexec/openjdk.jdk/Contents/Home
+./mvnw -B verify
+SPRING_PROFILES_ACTIVE=dev MCP_PORT=18491 "$JAVA_HOME/bin/java" -jar mcp-app/target/mcp-example.jar
+# w drugim terminalu:
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:18491/actuator/health          # 200
+curl -s -o /dev/null -w '%{http_code}\n' -X POST -H 'Content-Type: application/json' \
+     -H 'Accept: application/json, text/event-stream' \
+     -d '{"jsonrpc":"2.0","id":1,"method":"ping"}' http://127.0.0.1:18491/mcp            # 401
 ```
 
-`POST /mcp` bez JWT daje 401, połączenie bez certyfikatu klienta jest zrywane w handshake'u.
+Wartości domyślne profilu są w `mcp-app/src/main/resources/application-dev.yml` (backend
+`http://localhost:18081`, portal `http://localhost:18090`); każdą można nadpisać zmienną z tabeli wyżej.
+
+## Uruchomienie z mcp-platform-dev (mTLS)
+
+Konfiguracja produkcyjna na hoście, z certyfikatami i Redisem środowiska `mcp-platform-dev` (`make up` już
+uruchomione). Działa tylko dla systemu z listy `SystemId`: środowisko ma certyfikaty (`certs/mcp-<system>`, SAN
+`mcp-<system>.internal`, z `scripts/gen-certs.sh`) i użytkowników Redisa (`mcp-<system>`, `redis/start.sh`)
+dokładnie dla tych pięciu systemów. Nowy system wymaga najpierw zmiany kontraktu (`SystemId`) i dopisania go w
+ws-01 (lista `identities` w `gen-certs.sh`, pętla w `redis/start.sh`); bez tego zostaje tryb `dev`.
+
+Magazyny PKCS12 i Redis są chronione hasłami z `$MCP_PLATFORM_DEV/.secrets/dev.env`, więc ten wariant wymaga
+ich odczytu. Przykład dla serwera `mcp-jira` (wygenerowanego `new-server.sh jira`; inny system: zamień `jira`/
+`JIRA` w nazwach):
+
+```bash
+export JAVA_HOME=/opt/homebrew/Cellar/openjdk@25/25.0.4.1/libexec/openjdk.jdk/Contents/Home
+export MCP_PLATFORM_DEV=<workspace>/mcp-platform-dev           # ścieżka bezwzględna
+export MCP_TLS_STORE_PASSWORD="$(grep '^TLS_STORE_PASSWORD=' "$MCP_PLATFORM_DEV/.secrets/dev.env" | cut -d= -f2-)"
+export MCP_REDIS_PASSWORD="$(grep '^REDIS_MCP_JIRA_PASSWORD=' "$MCP_PLATFORM_DEV/.secrets/dev.env" | cut -d= -f2-)"
+export MCP_TLS_KEYSTORE="$MCP_PLATFORM_DEV/certs/mcp-jira/keystore.p12"
+export MCP_TLS_TRUSTSTORE="$MCP_PLATFORM_DEV/certs/ca/truststore.p12"
+export MCP_PORT=18490 MCP_BIND=127.0.0.1 MCP_REDIS_PORT=16379 MCP_JIRA_URL=http://localhost:18081
+export MCP_GATEWAY_JWKS_URI=https://localhost:18445/.well-known/jwks.json
+export MCP_CONNECT_URL='http://localhost:18090/connections?system={system}'
+"$JAVA_HOME/bin/java" -jar mcp-app/target/mcp-jira.jar
+# w drugim terminalu (te same zmienne MCP_PLATFORM_DEV), certyfikat klienta gateway'a:
+TLS=(--cacert "$MCP_PLATFORM_DEV/certs/ca/ca.crt" --resolve mcp-jira.internal:18490:127.0.0.1
+     --cert "$MCP_PLATFORM_DEV/certs/mcp-gateway/tls.crt" --key "$MCP_PLATFORM_DEV/certs/mcp-gateway/tls.key")
+curl -s -o /dev/null -w '%{http_code}\n' "${TLS[@]}" https://mcp-jira.internal:18490/actuator/health   # 200
+curl -s -o /dev/null -w '%{http_code}\n' "${TLS[@]}" -X POST -H 'Content-Type: application/json' \
+     -d '{"jsonrpc":"2.0","id":1,"method":"ping"}' https://mcp-jira.internal:18490/mcp                     # 401
+```
+
+Sprawdzone 2026-10-27 w czystej kopii `new-server.sh jira`. Połączenie bez certyfikatu klienta jest zrywane w
+handshake'u. Pełne wywołanie narzędzia wymaga gateway'a z hosta (`mcp-gateway/scripts/run-dev-host.sh`, JWKS na
+`localhost:18445`) skonfigurowanego na ten serwer.
 
 ## Testy
 

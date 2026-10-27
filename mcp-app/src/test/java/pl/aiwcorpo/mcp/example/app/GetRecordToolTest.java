@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.spec.McpSchema;
+import java.time.Duration;
 import java.util.Map;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,7 +52,11 @@ class GetRecordToolTest extends ServerTestSupport {
 
             assertThat(tool.annotations().readOnlyHint()).isTrue();
             assertThat(tool.inputSchema()).extractingByKey("properties")
-                    .asInstanceOf(InstanceOfAssertFactories.MAP).containsOnlyKeys("recordId");
+                    .asInstanceOf(InstanceOfAssertFactories.MAP).containsOnlyKeys("recordId")
+                    .extractingByKey("recordId").asInstanceOf(InstanceOfAssertFactories.MAP)
+                    .containsEntry("type", "string")
+                    .containsEntry("maxLength", 64)
+                    .containsEntry("pattern", "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$");
         }
     }
 
@@ -96,13 +101,68 @@ class GetRecordToolTest extends ServerTestSupport {
     @Test
     void anInvalidIdIsRejectedBeforeTheBackend() {
         try (McpSyncClient client = clientWithCredential(PAT)) {
-            for (String recordId : new String[] {"../admin", "ABC-1?x=1", "a".repeat(65), ""}) {
+            for (String recordId : new String[] {"../admin", "ABC-1?x=1", "a".repeat(65), "", ".."}) {
                 McpSchema.CallToolResult result = call(client, "get_record", Map.of("recordId", recordId));
 
+                // The MCP SDK checks the published schema first and answers in its own format (not C10, reported
+                // to ws-02); the tool's own check (ExampleToolTest) is the second line.
                 assertThat(result.isError()).isTrue();
-                assertThat(text(result)).contains("\"error\":\"invalid_argument\"", "recordId must be 1-64 characters");
+                assertThat(text(result)).containsAnyOf("\"error\":\"invalid_argument\"", "input validation failed");
+                if (!recordId.isEmpty()) {
+                    assertThat(text(result)).as("the argument value is not echoed").doesNotContain(recordId);
+                }
             }
             assertThat(BACKEND.authorizations()).isEmpty();
+        }
+    }
+
+    @Test
+    void anUnreadableBodyStaysOutOfTheResultAndTheLog(CapturedOutput output) {
+        try (McpSyncClient client = clientWithCredential(PAT)) {
+            McpSchema.CallToolResult result = call(client, "get_record", Map.of("recordId", "ABC-BADJSON"));
+
+            assertThat(result.isError()).isTrue();
+            assertThat(text(result)).contains("\"error\":\"internal_error\"").doesNotContain(StubBackend.BODY_MARKER);
+        }
+        assertThat(output.getAll()).contains("BackendResponseException").doesNotContain(StubBackend.BODY_MARKER);
+    }
+
+    @Test
+    void aRecordWithoutIdIsTheBackendsFaultNotTheCallers() {
+        try (McpSyncClient client = clientWithCredential(PAT)) {
+            McpSchema.CallToolResult result = call(client, "get_record", Map.of("recordId", "ABC-NOID"));
+
+            assertThat(text(result)).contains("\"error\":\"internal_error\"");
+        }
+    }
+
+    @Test
+    void aRedirectIsNotFollowedAndNotReadAsMissing() {
+        try (McpSyncClient client = clientWithCredential(PAT)) {
+            McpSchema.CallToolResult result = call(client, "get_record", Map.of("recordId", "ABC-302"));
+
+            assertThat(text(result)).contains("\"error\":\"internal_error\"");
+            assertThat(BACKEND.elsewhereHits()).as("the credential must not follow the Location").isEmpty();
+        }
+    }
+
+    @Test
+    void aSlowBackendTimesOut() {
+        try (McpSyncClient client = clientWithCredential(PAT)) {
+            long start = System.nanoTime();
+            McpSchema.CallToolResult result = call(client, "get_record", Map.of("recordId", "ABC-SLOW"));
+
+            assertThat(text(result)).contains("\"error\":\"upstream_unavailable\"");
+            assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(Duration.ofMillis(StubBackend.SLOW_MILLIS));
+        }
+    }
+
+    @Test
+    void anOversizedBodyIsCutOff() {
+        try (McpSyncClient client = clientWithCredential(PAT)) {
+            McpSchema.CallToolResult result = call(client, "get_record", Map.of("recordId", "ABC-HUGE"));
+
+            assertThat(text(result)).contains("\"error\":\"internal_error\"");
         }
     }
 

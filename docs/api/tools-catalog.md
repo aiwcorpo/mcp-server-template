@@ -6,7 +6,7 @@ tą tabelą.
 
 | Narzędzie (klient widzi `example__<nazwa>`) | Ryzyko | Akcja (C6) | Argumenty | Uprawnienie (C9) | Poświadczenie |
 | --- | --- | --- | --- | --- | --- |
-| `get_record` | `READ_ONLY` | `read` | `recordId` (`[A-Za-z0-9][A-Za-z0-9_-]{0,63}`) | `mcp-example-read` | z C3, `Authorization` |
+| `get_record` | `READ_ONLY` | `read` | `recordId` (`maxLength` 64, `pattern` `^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`) | `mcp-example-read` | z C3, `Authorization` |
 
 Konwencje: nazwy `snake_case`, czasownik i obiekt, bez prefiksu systemu (dokłada go gateway); opis mówi, co
 narzędzie zwraca, bez instrukcji dla modelu.

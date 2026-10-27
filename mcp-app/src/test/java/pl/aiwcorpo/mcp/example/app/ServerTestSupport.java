@@ -13,6 +13,7 @@ import java.time.Duration;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.Map;
+import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.ActiveProfiles;
@@ -31,6 +32,13 @@ abstract class ServerTestSupport {
 
     static final String SERVER_ID = "mcp-example";
     static final String SYSTEM = "example";
+
+    /**
+     * True only for a system outside the contracts' SystemId (the template's placeholder, a server generated
+     * with new-server.sh --trial). new-server.sh sets it to false for a real system, and then the system must be
+     * on the list (checked in {@link #contractSystemIsKnown()}).
+     */
+    static final boolean TRIAL_SYSTEM = true;
     static final String ENDPOINT = "/mcp";
     static final Set<String> CONTRACT_SYSTEMS = contractSystems();
 
@@ -41,6 +49,9 @@ abstract class ServerTestSupport {
     static void environment(DynamicPropertyRegistry registry) {
         GATEWAY.serverProperties().forEach((name, value) -> registry.add(name, () -> value));
         registry.add("example.backend.base-url", BACKEND::baseUrl);
+        // Short limits so the timeout and size tests run quickly; StubBackend's slow and huge records exceed them.
+        registry.add("example.backend.read-timeout", () -> "1s");
+        registry.add("example.backend.max-response-size", () -> "64KB");
     }
 
     @LocalServerPort
@@ -64,18 +75,24 @@ abstract class ServerTestSupport {
 
     /**
      * The starter sends only C10 errors valid against {@code tool-error.schema.json}, whose {@code system} is the
-     * closed {@code SystemId} list of the contracts. For a system outside it (the template's placeholder, a
-     * trial name) a {@code credential_required} becomes {@code internal_error}; for the platform's systems the
-     * full error with the portal link is expected.
+     * closed {@code SystemId} list of the contracts. A trial system (outside the list) gets {@code internal_error}
+     * instead; a real system must get the full error with the portal link, never {@code internal_error}.
      */
     static void assertCredentialRequired(McpSchema.CallToolResult result) {
         assertThat(result.isError()).isTrue();
-        if (CONTRACT_SYSTEMS.contains(SYSTEM)) {
+        if (TRIAL_SYSTEM) {
+            assertThat(CONTRACT_SYSTEMS).as("a trial system is outside SystemId").doesNotContain(SYSTEM);
+            assertThat(text(result)).contains("\"error\":\"internal_error\"");
+        } else {
             assertThat(text(result)).contains("\"error\":\"credential_required\"", "\"system\":\"" + SYSTEM + "\"",
                     "\"connectUrl\":\"http://localhost:18090/connections?system=" + SYSTEM + "\"");
-        } else {
-            assertThat(text(result)).contains("\"error\":\"internal_error\"");
         }
+    }
+
+    /** A real server's system is one of the contracts'; a trial one is not. */
+    @Test
+    void contractSystemIsKnown() {
+        assertThat(CONTRACT_SYSTEMS.contains(SYSTEM)).isEqualTo(!TRIAL_SYSTEM);
     }
 
     private static Set<String> contractSystems() {

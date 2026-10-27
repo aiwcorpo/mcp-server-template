@@ -1,6 +1,7 @@
 # Nowy serwer z template'u
 
-Ten plik, `new-server.sh` i `STATUS.md` nie są kopiowane do wygenerowanego serwera.
+Ten plik, `new-server.sh`, `tests/new-server-test.sh` i `STATUS.md` nie są kopiowane do wygenerowanego
+serwera.
 
 ## Generowanie
 
@@ -8,6 +9,7 @@ Ten plik, `new-server.sh` i `STATUS.md` nie są kopiowane do wygenerowanego serw
 cd mcp-server-template
 ./new-server.sh jira                     # -> ../mcp-server-jira
 ./new-server.sh jira /sciezka/mcp-server-jira
+./new-server.sh --trial demo /tmp/mcp-server-demo   # serwer próbny, tylko profil dev
 cd ../mcp-server-jira && git init
 export JAVA_HOME=/opt/homebrew/Cellar/openjdk@25/25.0.4.1/libexec/openjdk.jdk/Contents/Home
 ./mvnw verify                            # przechodzi bez zmian ręcznych
@@ -17,11 +19,18 @@ Uruchomienie wygenerowanego serwera opisuje jego README (ta treść trafia do ka
 lokalne bez środowiska" (profil `dev`, bez sekretów i certyfikatów: health 200, `POST /mcp` bez JWT 401) i
 "Uruchomienie z mcp-platform-dev (mTLS)".
 
-`<system>`: małe litery i cyfry, od litery (`jira`, `confluence`, `gitlab`, `servicedesk`, `opensearch`).
-Od startera 3.0.0-alpha-4 tylko te pięć (`SystemId` kontraktów) wstaje poza profilem `dev`; inna nazwa (np.
-`demo`) buduje się, przechodzi testy i działa w `dev` z ostrzeżeniem. Certyfikaty i użytkowników Redisa
-`mcp-platform-dev` ma tylko dla tych pięciu systemów.
-Skrypt kopiuje pliki śledzone przez git (i nowe, nieignorowane) i zamienia placeholder w treści i ścieżkach:
+`<system>` musi być na liście `SystemId` kontraktów (skrypt czyta ją z jara `mcp-contracts` w `~/.m2`, więc
+template trzeba raz zbudować): `jira`, `confluence`, `gitlab`, `servicedesk`, `opensearch`. Tylko takie serwery
+wstają poza profilem `dev`, i tylko dla nich `mcp-platform-dev` ma certyfikaty i użytkowników Redisa. Inna nazwa
+wymaga `--trial` (małe litery i cyfry, nie `platform`, `audit`, słowa kluczowe Javy); serwer próbny buduje się,
+przechodzi testy (oczekują `internal_error` zamiast `credential_required`) i działa w `dev` z ostrzeżeniem.
+Dla nazwy z listy skrypt ustawia `TRIAL_SYSTEM = false` w `ServerTestSupport`, a test `contractSystemIsKnown`
+pilnuje zgodności.
+
+Ścieżka docelowa (także względna, liczona od bieżącego katalogu) nie może istnieć ani leżeć w template'ie.
+Kopiowane są tylko pliki śledzone przez git; przy błędzie katalog docelowy jest usuwany. Test skryptu:
+`tests/new-server-test.sh` (`--build` dodatkowo buduje wygenerowany `jira`).
+Skrypt zamienia placeholder w treści i ścieżkach:
 
 | W template | Po `new-server.sh jira` |
 | --- | --- |
@@ -53,7 +62,8 @@ Na końcu skrypt sprawdza, że w nowym projekcie nie zostało żadne `example`.
    poświadczenia) i `docs/api/tools-catalog.md`; własny `STATUS.md`.
 6. Wdrożenie w `mcp-platform-dev`: obraz `docker build -t mcp-<system>:dev .` dla usługi `mcp-<system>` w
    profilu `full`. Compose ustawia dziś `MCP_JIRA_URL`, `MCP_GATEWAY_JWKS_URI`, `MCP_REDIS_*`, `MCP_TLS_*`,
-   ale nie `MCP_CONNECT_URL`, którego serwer wymaga (STATUS.md template'u, "Czego potrzebują inni").
+   i `MCP_CONNECT_URL`. Mock Jiry jest po `http`, więc usługa potrzebuje też `MCP_JIRA_ALLOW_PLAIN_HTTP=true`
+   (STATUS.md template'u, "Czego potrzebują inni"). Profilu `dev` w kontenerze nie używać.
 
 Po starterze beta (M2 template'u): `@ResourceRef` i resolver zasobów, `QueryScope`, `ResultFilter`,
 manifest C6, polityka zasobów z paczki (`MCP_POLICY_BUNDLE_URL`, `MCP_POLICY_PUBLIC_KEY`). Template dostanie

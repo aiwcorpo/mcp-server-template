@@ -16,13 +16,20 @@ import pl.aiwcorpo.mcp.platform.guard.ToolRisk;
  *
  * <p>The gateway decides who may call a tool and asks for confirmations; the starter verifies that the
  * call came from the gateway for exactly this tool. What stays here: a risk flag on every tool, strict
- * argument checks, and the resource always named by an explicit argument.
+ * argument checks (published in the schema and enforced in code), and the resource always named by an
+ * explicit argument.
  */
 @Service
 public class ExampleTool {
 
-    /** Record ids as the backend issues them; anything else never reaches the backend URL. */
-    private static final Pattern RECORD_ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9_-]{0,63}");
+    /**
+     * Record ids as the backend issues them. The first character excludes "." and "..", which URI template
+     * encoding leaves as path segments. One constant for the schema and the check.
+     */
+    static final String RECORD_ID_PATTERN = "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$";
+    static final int RECORD_ID_MAX_LENGTH = 64;
+
+    private static final Pattern RECORD_ID = Pattern.compile(RECORD_ID_PATTERN);
 
     private final ExampleUseCase useCase;
 
@@ -33,12 +40,14 @@ public class ExampleTool {
     @Tool(name = "get_record", description = "Returns one record by its id: id, project, title and status.")
     @ToolRisk(RiskLevel.READ_ONLY)
     public ExampleRecord getRecord(
-            @ToolParam(description = "Record id: letters, digits, '-' or '_', at most 64 characters") String recordId) {
+            @ToolParam(description = "Record id: letters, digits, '-' or '_', at most 64 characters")
+            @ArgumentLimits(maxLength = RECORD_ID_MAX_LENGTH, pattern = RECORD_ID_PATTERN) String recordId) {
         return useCase.getRecord(validRecordId(recordId));
     }
 
     private static String validRecordId(String recordId) {
         if (recordId == null || !RECORD_ID.matcher(recordId).matches()) {
+            // Fixed text: the value came from the model and must not be echoed back (C10).
             throw new InvalidToolArgumentException("recordId must be 1-64 characters: letters, digits, '-' or '_'");
         }
         return recordId;

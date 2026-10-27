@@ -1,27 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  MCP SERVER SEED — parent/aggregator.
-  Cross-cutting (security, TLS, observability, error) comes from mcp-platform-starter — NOT duplicated here.
-  Per server: change THIS groupId (pl.aiwcorpo.mcp.example -> pl.aiwcorpo.mcp.<domain>) so modules never
-  collide in the artifact repo. Intra-reactor deps use ${project.groupId}; the platform dep stays pl.aiwcorpo.mcp.
-  One-liner: find . -name pom.xml -exec sed -i '' 's/pl.aiwcorpo.mcp.example/pl.aiwcorpo.mcp.jira/g' {} +
+  Parent/aggregator of the MCP server. Cross-cutting concerns (internal JWT of the gateway, backend
+  credential, audit, tool errors, MCP transport) come from mcp-platform-starter and are not duplicated here.
+  groupId pl.aiwcorpo.mcp.<system> keeps the modules of different servers apart in the artifact repository;
+  new-server.sh sets it. Intra-reactor dependencies use ${project.groupId}, the platform stays pl.aiwcorpo.mcp.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>pl.aiwcorpo.mcp.example</groupId>   <!-- unique per server: pl.aiwcorpo.mcp.<domain> -->
-    <artifactId>mcp-server-seed-parent</artifactId>   <!-- rename per server, e.g. mcp-jira-parent -->
+    <groupId>pl.aiwcorpo.mcp.example</groupId>
+    <artifactId>mcp-example-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
-    <name>MCP Server Seed :: Parent</name>
+    <name>mcp-example :: Parent</name>
 
-    <!-- Spring Boot version must match the one the platform starter is built against. -->
+    <!-- Must be the Spring Boot version mcp-platform-starter is built against. -->
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>4.1.0</version> <!-- keep aligned with mcp-platform-starter's parent -->
+        <version>4.1.0</version>
         <relativePath/>
     </parent>
 
@@ -31,19 +30,18 @@
         <module>mcp-integration</module>
         <module>mcp-tools</module>
         <module>mcp-app</module>
-        <!-- NOTE: no mcp-shared module — cross-cutting lives in mcp-platform-starter. -->
     </modules>
 
     <properties>
         <java.version>25</java.version>
         <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <mcp-platform.version>2.0.0</mcp-platform.version>
+        <mcp-platform.version>3.0.0-alpha-3</mcp-platform.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
-            <!-- THE platform BOM: pins the starter + Spring AI versions for the whole server. -->
+            <!-- Pins the starter, mcp-platform-test, mcp-contracts and Spring AI for the whole server. -->
             <dependency>
                 <groupId>pl.aiwcorpo.mcp</groupId>
                 <artifactId>mcp-platform-bom</artifactId>

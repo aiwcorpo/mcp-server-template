@@ -1,13 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  mcp-tools — INBOUND ADAPTER: MCP tool definitions.
-  This is the *public attack surface*. Each @Tool method is a capability exposed to AI clients.
-  Rules of thumb:
-   - Thin adapters: validate input (JSON Schema / Bean Validation), map to use-case call, map result.
-   - Least privilege: expose the minimum set of tools; gate write tools behind config/roles.
-   - Never build shell/SQL/paths from raw tool arguments (injection / SSRF).
-   - Deterministic, non-instruction tool descriptions (mitigate tool-poisoning / prompt injection).
-  Depends on mcp-application + mcp-platform-starter (the @Tool API + Spring AI MCP arrive via platform).
+  mcp-tools: inbound adapter, the @Tool methods. This is the public attack surface of the server:
+  thin methods that validate arguments, call a use case and return only the fields the caller needs.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -15,18 +9,17 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>pl.aiwcorpo.mcp.example</groupId>
-        <artifactId>mcp-server-seed-parent</artifactId>
+        <artifactId>mcp-example-parent</artifactId>
         <version>0.1.0-SNAPSHOT</version>
     </parent>
     <artifactId>mcp-tools</artifactId>
-    <name>MCP Server :: Tools (inbound MCP adapter)</name>
+    <name>mcp-example :: Tools (inbound MCP adapter)</name>
     <dependencies>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>mcp-application</artifactId>
             <version>${project.version}</version>
         </dependency>
-        <!-- Platform starter provides the @Tool API + Spring AI MCP server (no direct Spring AI dep). -->
         <dependency>
             <groupId>pl.aiwcorpo.mcp</groupId>
             <artifactId>mcp-platform-starter</artifactId>

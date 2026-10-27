@@ -1,17 +1,15 @@
 # deploy/
 
-Everything needed to run the MCP server directly on a VM via **systemd**, behind the nginx gateway
-(TLS terminated there; the app serves plain HTTP on :8080).
+Uruchomienie serwera na VM przez systemd. Opis krok po kroku: `docs/operations/deployment-vm-systemd.md`.
+Obraz kontenera: `Dockerfile` w katalogu głównym.
 
 ```
 deploy/
 ├── systemd/
-│   ├── mcp-server.service        # hardened unit (non-root, sandboxed)
-│   └── mcp-server.env.example    # secrets template -> /etc/mcp-server/mcp-server.env
+│   ├── mcp-example.service         unit (konto mcp, sandbox systemd, logi do journald)
+│   └── mcp-example.env.template    zmienne środowiska -> /etc/mcp-example/mcp-example.env
 └── scripts/
-    ├── install.sh                # first-time provisioning (user, dirs, unit)
-    ├── update.sh                 # rolling jar update with backup
-    └── healthcheck.sh            # HTTP health probe
+    ├── install.sh                  pierwsza instalacja (konto, katalogi, unit)
+    ├── update.sh                   podmiana jara z kopią do wycofania
+    └── healthcheck.sh              /actuator/health po mTLS
 ```
-
-See `docs/operations/deployment-vm-systemd.md` for the full step-by-step runbook.

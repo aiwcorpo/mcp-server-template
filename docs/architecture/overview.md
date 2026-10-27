@@ -1,55 +1,47 @@
-# Architektura — przegląd
+# Architektura
 
-## Cel
-
-Korporacyjny serwer **MCP (Model Context Protocol)** udostępniający wewnętrzne systemy organizacji
-asystentom AI jako zestaw kontrolowanych, audytowanych **narzędzi (tools)**. Serwer działa po
-**HTTP**; TLS jest terminowany na **nginx gateway**, a aplikacja nasłuchuje po zwykłym HTTP w sieci
-wewnętrznej za gateway. Uruchamiany na **VM przez systemd**.
-
-## Styl architektoniczny — heksagonalny (ports & adapters), multi-module
+## Miejsce w platformie
 
 ```
-        AI client (Claude/IDE)                 systemy backendowe (REST/DB/kolejki)
-                 │  HTTP + X-PAT-* (TLS na nginx)            ▲
-                 ▼                                          │
-        ┌──────────────────┐   inbound      ┌───────────────┴───────────────┐
-        │   mcp-tools      │  port (in)     │        mcp-integration        │
-        │  (@Tool adapter) │───────────────▶│      (outbound adapters)      │
-        └──────────────────┘                └───────────────▲───────────────┘
-                 │                                            │ outbound
-                 ▼                                            │ port (out)
-        ┌──────────────────┐        ┌────────────────────────┴───────────┐
-        │  mcp-application │───────▶│              mcp-core               │
-        │   (use cases)    │  uses  │   domena + porty (in/out), 0 Spring │
-        └──────────────────┘        └─────────────────────────────────────┘
-             wspólne (ze startera): mcp-platform-starter (security, tls, observability, error) · bootstrap: mcp-app
+klient AI --OIDC--> MCP gateway --mTLS + JWT C2 + poświadczenie C3--> mcp-example --API--> system example
+                       |  ^
+                       |  +-- credential broker (poświadczenie użytkownika)
+                       +-- polityki (Cedar), potwierdzenia, audyt
 ```
 
-Zależności skierowane są **do środka**: `mcp-core` nie zna frameworka ani transportu. Dzięki temu
-logika biznesowa jest testowalna i audytowalna niezależnie od MCP/HTTP.
+Gateway uwierzytelnia użytkownika, decyduje o dostępie do narzędzia, pobiera z brokera poświadczenie
+użytkownika do systemu i wysyła do serwera nowy wewnętrzny JWT na każde żądanie HTTP. Serwer sprawdza, że
+żądanie przyszło od gateway'a (certyfikat klienta CN `mcp-gateway`, JWT z `aud` = `mcp-example`, `tool` ==
+nazwa wywoływanego narzędzia, jednorazowy `jti`), i woła system jako ten użytkownik. Serwer nie zna tokenu
+IdP użytkownika i nie przechowuje żadnego sekretu.
 
-## Moduły
+## Heksagon w modułach
 
-| Moduł | Odpowiedzialność | Zależy od |
-|-------|------------------|-----------|
-| `mcp-core` | Domena, encje, porty (interfejsy in/out). Bez Spring. | — |
-| `mcp-application` | Przypadki użycia; orkiestracja portów; transakcje. | core |
-| `mcp-tools` | Adapter wejściowy: definicje `@Tool` (powierzchnia publiczna). | application + Spring AI MCP |
-| `mcp-integration` | Adaptery wyjściowe do systemów backendowych (resilience, TLS out). | core + application |
-| `mcp-platform-starter` | Cross-cutting ze startera platformowego: security, TLS, obserwowalność, błędy. | (zależność zewn.) |
-| `mcp-app` | Bootstrap + wiring + jedyny wykonywalny artefakt (jar). | wszystkie |
+```
+            mcp-tools (@Tool)                      mcp-integration (REST do systemu)
+                  |                                         |
+                  v                                         v implementuje
+           mcp-application (przypadki użycia) ---> mcp-core (domena, porty in/out)
+                              mcp-app: bootstrap, wiring, jar, testy end-to-end
+             wspólne: mcp-platform-starter (JWT C2, C3, audyt C8, błędy C10, transport MCP)
+```
+
+`mcp-core` nie zależy od Springa ani MCP, więc reguły domeny testuje się bez transportu. Kod przekrojowy jest
+w starterze; serwer go nie powiela.
 
 ## Transport
 
-Streamable-HTTP (Spring AI MCP server, WebMVC), jeden endpoint `/mcp/<system>` po HTTP (TLS na nginx
-gateway). Tryb uwierzytelniania jest jeden dla serwera (`MCP_AUTH_MODE`): `oauth` — token dostępu
-OIDC w `Authorization: Bearer`, albo `pat` — własny token backendu w `X-PAT-<system>`. W obu
-serwer forwarduje poświadczenie wywołującego do backendu.
+Streamable HTTP (Spring AI 2.0, MCP SDK 2.0, tryb SYNC), endpoint `/mcp`, wersje protokołu 2025-03-26 ..
+2025-11-25, sesje `Mcp-Session-Id`. Gateway trzyma osobną sesję na użytkownika (`sub`), więc serwer nie wiąże
+sesji z użytkownikiem sam. `CallerContext` i `CredentialContext` są per wątek żądania, dlatego starter odrzuca
+tryb ASYNC.
 
-## Kluczowe decyzje
+## Decyzje
 
-- **Transport streamable-HTTP** — natywnie wspierany przez Spring AI MCP server (WebMVC).
-- **TLS terminowany na nginx gateway** — aplikacja serwuje zwykły HTTP i ufa `X-Forwarded-*` (`forward-headers-strategy: framework`); brak SSL w aplikacji.
-- **Poświadczenie użytkownika do backendu** — token dostępu (tryb `oauth`) albo PAT (`X-PAT-<system>`, tryb `pat`); bez konta serwisowego; szczegóły w `security/SECURITY.md`.
-- **Tool guard w platformie** — każde narzędzie ma flagę ryzyka (`@ToolRisk`); platforma sprawdza tożsamość i uprawnienie wywołującego, a akcje destrukcyjne wykonuje dopiero po potwierdzeniu kodem jednorazowym. Reguły są w pliku polityki przeładowywanym bez restartu. Decyzje są deterministyczne, bez udziału modelu.
+- mTLS kończy sam serwer (`server.ssl.client-auth: need`), bez nginx przed nim: certyfikat klienta musi dotrzeć
+  do aplikacji, a gateway sprawdza SAN `mcp-example.internal` serwera.
+- Konfiguracja bazowa jest produkcyjna; profil `dev` istnieje dla testów i wyłącza tylko TLS.
+- Jeden system na serwer: `server-id` = `mcp-<system>`, `CredentialContext.require` innego systemu to błąd
+  programisty.
+- Adapter nie podąża za przekierowaniami i nie czyta treści błędów systemu.
+- Ponawianie i circuit breaker w adapterze: M2 template'u (teraz tylko timeouty).

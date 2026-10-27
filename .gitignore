@@ -6,13 +6,13 @@ target/
 .idea/
 *.iml
 .vscode/
-# Secrets / TLS material — NEVER commit
+# Secrets / TLS material, never committed
 *.p12
 *.jks
 *.pem
 *.key
 *.crt
-**/mcp-server.env
-!deploy/systemd/mcp-server.env.example
+**/mcp-*.env
+!deploy/systemd/mcp-*.env.template
 # Logs
 *.log

@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# TEMPLATE — liveness check over plain HTTP (TLS is terminated at the nginx gateway).
-# Adjust host. Exit non-zero on failure.
+# Health over mTLS: the server asks every client for a certificate of the internal CA, the probe too.
+# healthcheck.sh <url> <ca.crt> <client.crt> <client.key>, e.g.
+#   healthcheck.sh https://mcp-example.internal:8443 /etc/mcp-example/tls/ca.crt probe.crt probe.key
 set -euo pipefail
-HOST="${1:-http://localhost:8080}"
-curl -fsS "$HOST/actuator/health" | grep -q '"status":"UP"'
+URL="${1:?usage: healthcheck.sh <url> <ca.crt> <client.crt> <client.key>}"
+curl -fsS --cacert "${2:?ca.crt}" --cert "${3:?client.crt}" --key "${4:?client.key}" "$URL/actuator/health" \
+    | grep -q '"status":"UP"'
 echo "OK"

@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  mcp-application (TEMPLATE) — Use-case services that orchestrate domain + outbound ports.
-  Depends on mcp-core only. Implements inbound ports (in), calls outbound ports (out).
-  Transaction boundaries, authorization checks (coarse) and orchestration live here.
+  mcp-application: use cases (plain Java) implementing the inbound ports and calling the outbound ports.
+  Depends on mcp-core only; mcp-app turns the services into beans.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -10,16 +9,26 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>pl.aiwcorpo.mcp.example</groupId>
-        <artifactId>mcp-server-seed-parent</artifactId>
+        <artifactId>mcp-example-parent</artifactId>
         <version>0.1.0-SNAPSHOT</version>
     </parent>
     <artifactId>mcp-application</artifactId>
-    <name>MCP Server :: Application (use cases)</name>
+    <name>mcp-example :: Application (use cases)</name>
     <dependencies>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>mcp-core</artifactId>
             <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

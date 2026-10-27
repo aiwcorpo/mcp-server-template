@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  mcp-core (TEMPLATE) — Pure domain + ports. NO Spring, NO framework dependencies.
-  This is the innermost hexagon: entities, value objects, domain services, and the
-  port interfaces (inbound use-case ports, outbound integration ports).
-  Keep this module dependency-light so business rules stay testable and portable.
+  mcp-core: domain and ports, plain Java. No Spring and no MCP here, so business rules stay testable
+  without the transport and the framework.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -11,10 +9,9 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>pl.aiwcorpo.mcp.example</groupId>
-        <artifactId>mcp-server-seed-parent</artifactId>
+        <artifactId>mcp-example-parent</artifactId>
         <version>0.1.0-SNAPSHOT</version>
     </parent>
     <artifactId>mcp-core</artifactId>
-    <name>MCP Server :: Core (domain + ports)</name>
-    <!-- dependencies: only JSR-305/validation-api if needed; unit-test scope only. -->
+    <name>mcp-example :: Core (domain + ports)</name>
 </project>

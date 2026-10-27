@@ -1,42 +1,42 @@
-# Wdrożenie na VM (systemd) — runbook
+# Wdrożenie na VM (systemd)
 
-Serwer uruchamiany bezpośrednio na maszynie wirtualnej jako usługa systemd, bez kontenera.
-Aplikacja nasłuchuje po zwykłym HTTP na `:8080`; front stanowi **nginx reverse-proxy gateway**,
-który terminuje TLS.
+Serwer działa jako usługa systemd, bez kontenera, i sam kończy mTLS na porcie 8443. Gateway łączy się z nim
+pod nazwą `mcp-example.internal` (SAN certyfikatu serwera).
 
-## Wymagania wstępne
-- Linux z systemd, dostęp root/sudo.
-- JRE/JDK 25 (`/usr/bin/java`).
-- Zbudowany artefakt `mcp-server.jar` (z modułu `mcp-app`: `./mvnw -pl mcp-app -am package`).
-- nginx gateway z terminacją TLS przed usługą (patrz `docs/security/tls.md`).
+## Wymagania
+
+- JRE 25 w `/usr/bin/java`, jar `mcp-app/target/mcp-example.jar` (`./mvnw verify`).
+- Certyfikat serwera (SAN `mcp-example.internal`, CA wewnętrzne) i truststore z CA wewnętrznym, oba PKCS12.
+- Redis z użytkownikiem ACL `mcp-example` (klucze `jti:mcp-example:*`, komenda `SET`).
+- Dostęp sieciowy: od gateway'a do 8443, z serwera do JWKS gateway'a, Redisa i API systemu.
 
 ## Układ na hoście
+
 ```
-/opt/mcp-server/mcp-server.jar         # artefakt (0640, owner root:mcp) — profile konfiguracji są w jarze
-/etc/mcp-server/                       # środowisko usługi (0750)
-└── mcp-server.env                     # sekrety + MCP_PROFILE=prod (0640, root:mcp) — NIE w repo
-/var/log/mcp-server/                   # logi/audyt (0750, owner mcp)
+/opt/mcp-example/mcp-example.jar         0640 root:mcp
+/etc/mcp-example/mcp-example.env         0640 root:mcp  (z deploy/systemd/mcp-example.env.template)
+/etc/mcp-example/tls/keystore.p12        0640 root:mcp
+/etc/mcp-example/tls/truststore.p12      0640 root:mcp
 ```
 
-Konfiguracja profili (`application*.yml`, `logback-spring.xml`) jest spakowana w jarze; produkcyjne
-wartości wstrzykujesz przez zmienne środowiskowe (poniżej). Jeśli potrzebujesz nadpisań poza jarem,
-uruchom z `--spring.config.additional-location=file:/etc/mcp-server/`.
+Logi (aplikacja i audyt C8) idą na stdout, czyli do journald; audyt to linie JSON z loggera
+`pl.aiwcorpo.mcp.audit` do przekazania do SIEM.
 
 ## Kroki
-1. **Konto i katalogi**: `deploy/scripts/install.sh /sciezka/mcp-server.jar` (tworzy usera `mcp`,
-   katalogi, kopiuje unit). Przejrzyj skrypt przed uruchomieniem.
-2. **Sekrety i profil**: `mcp-server.env.example` → `/etc/mcp-server/mcp-server.env`; ustaw
-   `MCP_PROFILE=prod` oraz `EXAMPLE_BACKEND_BASE_URL`; `chown root:mcp`, `chmod 0640`.
-3. **Start**: `systemctl enable --now mcp-server`.
-4. **Weryfikacja**: `deploy/scripts/healthcheck.sh http://localhost:8080`
-   oraz `journalctl -u mcp-server -f`. TLS sprawdzasz na nginx gateway.
 
-## Aktualizacja
-`deploy/scripts/update.sh /sciezka/nowy.jar` (backup starego jar + restart).
+1. `deploy/scripts/install.sh mcp-app/target/mcp-example.jar` (konto `mcp`, katalogi, unit).
+2. Plik środowiska z szablonu, keystore i truststore do `/etc/mcp-example/tls`.
+3. `systemctl enable --now mcp-example`, potem `journalctl -u mcp-example -f`.
+4. `deploy/scripts/healthcheck.sh https://mcp-example.internal:8443 <ca.crt> <cert klienta> <klucz>`; serwer
+   wymaga certyfikatu klienta także dla health.
 
-## Wycofanie (rollback)
-Przywróć `mcp-server.jar.bak.<timestamp>` i `systemctl restart mcp-server`.
+Aktualizacja: `deploy/scripts/update.sh <nowy.jar>` (poprzedni jar zostaje jako `.bak.<data>`). Wycofanie:
+przywrócić kopię i `systemctl restart mcp-example`.
 
 ## Typowe problemy
-- 8080 nie nasłuchuje → sprawdź `journalctl`; częsta przyczyna: błąd startu aplikacji lub zajęty port.
-- 401/403 z backendu → brak lub nieważny PAT; sprawdź, czy klient wysyła nagłówek `X-PAT-<system>`.
+
+- Brak startu z `Invalid MCP platform configuration`: brakuje `MCP_GATEWAY_JWKS_URI` albo `MCP_CONNECT_URL`.
+- 503 na każde wywołanie: Redis niedostępny albo użytkownik ACL bez prawa do `jti:mcp-example:*`, albo JWKS
+  gateway'a niedostępny dłużej niż `jwks-max-stale`.
+- 401 mimo działającego gateway'a: inny `iss`/`aud`, zegar przesunięty o ponad 30 s, gateway bez certyfikatu
+  CN `mcp-gateway`; powód jest w logu (`event=internal_jwt_rejected reason=...`).

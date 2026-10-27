@@ -1,10 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  mcp-integration — OUTBOUND ADAPTERS.
-  Implements the outbound ports declared in mcp-core (e.g. repositories, external API clients).
-  Put HTTP clients, DB access, message producers here. Apply timeouts, retries, circuit breakers,
-  and outbound TLS trust config. Keep secrets out of code (inject via config/env/vault).
-  Depends on mcp-core (ports) + mcp-platform-starter (shared utilities: context, audit, error).
+  mcp-integration: outbound adapters implementing the ports of mcp-core (REST clients of the backend system).
+  The credential for the backend comes from the gateway per request (CredentialContext of the starter);
+  this module never holds a secret of its own.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -12,11 +10,11 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>pl.aiwcorpo.mcp.example</groupId>
-        <artifactId>mcp-server-seed-parent</artifactId>
+        <artifactId>mcp-example-parent</artifactId>
         <version>0.1.0-SNAPSHOT</version>
     </parent>
     <artifactId>mcp-integration</artifactId>
-    <name>MCP Server :: Integration (outbound adapters)</name>
+    <name>mcp-example :: Integration (outbound adapters)</name>
     <dependencies>
         <dependency>
             <groupId>${project.groupId}</groupId>

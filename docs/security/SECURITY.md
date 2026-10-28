@@ -8,7 +8,9 @@ Niezmienniki platformy (`mcp-platform-plan/00-overview.md`) i to, gdzie serwer j
 | Token IdP nigdy do systemu | serwer go nie dostaje; do systemu idzie wyłącznie poświadczenie z C3 (`CredentialContext.require`) |
 | Fail-closed | brak JWKS, Redisa, konfiguracji albo poświadczenia -> 401/503/`credential_required`/brak startu, nigdy przepuszczenie; starter odrzuca relaksacje `dev` w innych profilach |
 | Sekrety nigdy w logach, audycie, wynikach i błędach | nagłówki poświadczeń ukryte po odczycie, `BackendCredential.toString()` bez wartości, redakcja komunikatów w starterze; adapter zamienia błędy i nieczytelne odpowiedzi systemu na wyjątki bez treści; backend tylko po `https`. Testy: `theCredentialNeverAppearsInTheResultOrTheLog`, `anUnreadableBodyStaysOutOfTheResultAndTheLog`, `outsideDevTheBackendMustBeHttps` |
-| "Nie istnieje" i "brak dostępu" -> `not_found_or_denied` | 404 i 403 systemu dają ten sam błąd i tekst. Test: `missingAndForbiddenRecordsLookTheSame` |
+| "Nie istnieje" i "brak dostępu" -> `not_found_or_denied` | 404 i 403 systemu, projekt `restricted`, rekord przeniesiony do takiego projektu i klasyfikacja, której system nie podał, dają ten sam błąd i tekst. Testy: `missingAndForbiddenRecordsLookTheSame`, `ResourcePolicyTest` |
+| Dane `restricted` nigdy do agentów, link wirtualnego serwera tylko zawęża | starter ocenia Cedar (`read`) na zasobie opisanym przez `ExampleResourceDescription` z odpowiedzi systemu, nie z argumentu; wyszukiwanie zawęża `QueryScope`, a hity filtruje po `@ResourceRef`. Testy: `SearchRecordsToolTest` |
+| Paczka polityk podpisana, rewizje tylko w górę | klucz publiczny z konfiguracji, `policy.state-dir` poza `dev`, klucze `test-*` tylko w `dev`; bez pierwszej paczki serwer nie wstaje. Test: `ProductionConfigurationTest` |
 | Audyt z `requestId` | jedno zdarzenie C8 `tool_call` na wywołanie (logger `pl.aiwcorpo.mcp.audit`, stdout, czysta linia JSON), `requestId` z JWT |
 
 ## Zasady dla kodu
@@ -25,7 +27,8 @@ Niezmienniki platformy (`mcp-platform-plan/00-overview.md`) i to, gdzie serwer j
   3.0.0-alpha-5, test `DevProfileLoopbackTest`). Serwer, do którego łączy się gateway, działa wyłącznie w
   konfiguracji bazowej.
 - Serwer nie ma konta w systemie. Typ `service-account` (np. service desk, D10) przychodzi też przez C3, a
-  wtedy serwer jest główną granicą autoryzacji i musi sprawdzać zakres zasobu sam (starter beta).
+  wtedy serwer jest główną granicą autoryzacji: zapytanie ogranicza do `QueryScope.grantedIds()` (puste
+  `grantsNothing()` = bez zapytania), a wynik filtruje polityka.
 - Hinty MCP (`readOnlyHint`, `destructiveHint`) są informacją dla klienta, nie zabezpieczeniem.
 
 ## Wdrożenie

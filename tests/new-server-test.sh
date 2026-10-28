@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Checks new-server.sh without building: refusals, where the output lands, the trial flag, and that the template
-# stays untouched. tests/new-server-test.sh [--build] (--build also runs ./mvnw verify in a generated jira).
+# stays untouched. tests/new-server-test.sh [--build] (--build also runs ./mvnw verify in every generated profile).
 set -euo pipefail
 
 template="$(cd "$(dirname "$0")/.." && pwd)"
@@ -45,7 +45,21 @@ check "real system: TRIAL_SYSTEM false" grep -q 'TRIAL_SYSTEM = false' \
 check "no template-only files" test ! -e "$work/relative-jira/new-server.sh" -a ! -e "$work/relative-jira/STATUS.md" \
     -a ! -e "$work/relative-jira/tests/new-server-test.sh" -a ! -e "$work/relative-jira/docs/nowy-serwer.md"
 
+check "jira keeps the template's resource model" grep -q 'Jira::Issue' \
+    "$work/relative-jira/mcp-core/src/main/java/pl/aiwcorpo/mcp/jira/core/domain/JiraResourceModel.java"
+check "no profiles directory in a generated server" test ! -e "$work/relative-jira/profiles"
+"$template/new-server.sh" gitlab "$work/gitlab" >/dev/null
+check "gitlab gets its profile" grep -q 'GitLab::Project' \
+    "$work/gitlab/mcp-core/src/main/java/pl/aiwcorpo/mcp/gitlab/core/domain/GitlabResourceModel.java"
+check "gitlab sends ancestorClassifications" grep -q ancestorClassifications \
+    "$work/gitlab/mcp-integration/src/main/java/pl/aiwcorpo/mcp/gitlab/integration/GitlabResourceDescription.java"
+for system in confluence servicedesk opensearch; do
+    "$template/new-server.sh" "$system" "$work/$system" >/dev/null
+    check "$system gets its profile" test -n "$(grep -rl "$(case $system in confluence) echo Confluence::Page;; servicedesk) echo ServiceDesk::Ticket;; opensearch) echo OpenSearch::Index;; esac)" "$work/$system/mcp-core")"
+done
 "$template/new-server.sh" --trial demo "$work/demo" >/dev/null
+check "trial system keeps the template's Jira model" grep -q 'Jira::Issue' \
+    "$work/demo/mcp-core/src/main/java/pl/aiwcorpo/mcp/demo/core/domain/DemoResourceModel.java"
 check "trial system: TRIAL_SYSTEM true" grep -q 'TRIAL_SYSTEM = true' \
     "$work/demo/mcp-app/src/test/java/pl/aiwcorpo/mcp/demo/app/ServerTestSupport.java"
 check "no placeholder left" bash -c "! grep -rIil example '$work/demo'"
@@ -53,7 +67,9 @@ check "no placeholder left" bash -c "! grep -rIil example '$work/demo'"
 check "template unchanged" test "$before" == "$(git -C "$template" status --porcelain --untracked-files=all)"
 
 if [[ "${1:-}" == "--build" ]]; then
-    check "generated jira builds and passes its tests" bash -c "cd '$work/relative-jira' && git init -q && ./mvnw -B -q verify >'$work/build.log' 2>&1"
+    for generated in relative-jira gitlab confluence servicedesk opensearch demo; do
+        check "generated $generated builds and passes its tests" bash -c "cd '$work/$generated' && git init -q && ./mvnw -B -q verify >'$work/build-$generated.log' 2>&1"
+    done
 fi
 
 echo "failures: $failures"

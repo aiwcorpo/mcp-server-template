@@ -1,14 +1,15 @@
 # mcp-example: serwer MCP platformy
 
-Serwer MCP dla systemu `example`, zbudowany na `mcp-platform-starter` 3.0.0-alpha-11 (Java 25, Spring Boot
-4.1.0, Spring AI 2.0.0, kontrakty `mcp-contracts` 2.1.1). Stoi wyłącznie za gateway'em platformy: przyjmuje
+Serwer MCP dla systemu `example`, zbudowany na `mcp-platform-starter` 3.0.0-beta-1 (Java 25, Spring Boot
+4.1.0, Spring AI 2.0.0, kontrakty `mcp-contracts` 3.1.0). Stoi wyłącznie za gateway'em platformy: przyjmuje
 ruch tylko po mTLS z wewnętrznym JWT gateway'a (C2), a do systemu docelowego woła z poświadczeniem
 użytkownika, które gateway dołącza do każdego żądania (C3). Bez poprawnego JWT odpowiada 401, nie ma trybu
 anonimowego.
 
 Logowania użytkowników, decyzji o dostępie do narzędzi i potwierdzeń akcji destrukcyjnych serwer nie robi:
-to zadania gateway'a. Serwer odpowiada za narzędzia, adapter do systemu, poprawne błędy (C10) i audyt (C8),
-który dokłada starter.
+to zadania gateway'a. Serwer odpowiada za narzędzia, adapter do systemu, poprawne błędy (C10), audyt (C8),
+który dokłada starter, oraz za opis swoich zasobów dla polityki: starter ocenia na nich tę samą podpisaną paczkę
+Cedar (C7), którą ocenia gateway, i odmawia dostępu do zasobów zastrzeżonych (`restricted`).
 
 ## Szybki start
 
@@ -24,32 +25,42 @@ JWKS z kluczy testowych kontraktów i podpisuje wewnętrzne JWT, a `StubBackend`
 
 | Moduł | Co w nim jest | W tym serwerze |
 | --- | --- | --- |
-| `mcp-core` | domena i porty, czysta Java | `ExampleRecord`, `RecordNotFoundException`, port wejściowy `ExampleUseCase`, port wyjściowy `ExampleResourcePort` |
+| `mcp-core` | domena i porty, czysta Java | `ExampleRecord`, `ExampleRecordHit`, `ExampleResourceModel` (typy zasobów polityki, wzorce identyfikatorów z kontraktów), port wejściowy `ExampleUseCase`, port wyjściowy `ExampleResourcePort` |
 | `mcp-application` | przypadki użycia (bez Springa) | `ExampleService` |
-| `mcp-integration` | adaptery wyjściowe do systemu | `ExampleResourceAdapter` (REST, poświadczenie z C3, timeouty, bez przekierowań, `https` poza `dev`), `BoundedBodyInterceptor` (limit rozmiaru odpowiedzi), `BackendResponseException` (odpowiedź bez treści w komunikacie), `ExampleBackendProperties` |
-| `mcp-tools` | narzędzia MCP, powierzchnia publiczna | `ExampleTool` (`get_record`), `ExampleToolErrors` (wyjątki domeny -> kody C10), `ExampleRecordView` (wynik z `UntrustedText`); `@ArgumentLimits` i `SchemaLimitedToolCallbacks` pochodzą ze startera (limity argumentów w `inputSchema`) |
+| `mcp-integration` | adaptery wyjściowe do systemu | `ExampleResourceAdapter` (REST, poświadczenie z C3, timeouty, bez przekierowań, `https` poza `dev`), `BoundedBodyInterceptor` (limit rozmiaru odpowiedzi), `BackendResponseException` (odpowiedź bez treści w komunikacie), `ExampleBackendProperties`, `ExampleRecordResolver` (`ResourceResolver`: rekord z systemu poświadczeniem wywołującego), `ExampleResourceDescription` (rekord jako zasób polityki: id, rodzic i klasyfikacja z odpowiedzi systemu) |
+| `mcp-tools` | narzędzia MCP, powierzchnia publiczna | `ExampleTool` (`get_record`, `search_records`), `ExampleRecordView` i `ExampleSearchView` (wyniki z `UntrustedText`, hit z `@ResourceRef`); `@ArgumentLimits` i `SchemaLimitedToolCallbacks` pochodzą ze startera (limity argumentów w `inputSchema`) |
 | `mcp-app` | bootstrap, wiring, jedyny jar, testy end-to-end | `McpServerApplication`, `McpToolsConfiguration` (lista narzędzi), `ApplicationWiringConfiguration` |
 
 Zależności idą do środka: `mcp-tools` -> `mcp-application` -> `mcp-core` <- `mcp-integration`; `mcp-app` składa
-całość. Resolver zasobów (`@ResourceRef`, starter beta) dojdzie w `mcp-integration` obok adaptera, bo atrybuty
-zasobu (projekt, klasyfikacja) pochodzą z systemu.
+całość. Resolver zasobów jest w `mcp-integration` obok adaptera, bo atrybuty zasobu (projekt, klasyfikacja) pochodzą z
+systemu, nie z argumentu narzędzia.
 
 ## Narzędzia
 
-| Narzędzie | Ryzyko | Argumenty | Wynik i błędy |
-| --- | --- | --- | --- |
-| `get_record` | `READ_ONLY` | `recordId`: `maxLength` 64, `pattern` `^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$` (w `inputSchema` i w kodzie) | `{id, project, title, status}`; `not_found_or_denied` (404 i 403 z systemu), `credential_required` (brak poświadczenia albo 401 z systemu), `invalid_argument`, `upstream_unavailable` (system nieosiągalny, timeout, 502-504), `internal_error` (przekierowanie, nieczytelna albo za duża odpowiedź) |
+| Narzędzie | Tytuł | Ryzyko | Akcja | Uprawnienie (C9) | Argumenty | Wynik i błędy |
+| --- | --- | --- | --- | --- | --- | --- |
+| `get_record` | Pobierz rekord | `READ_ONLY` | `read` | `mcp-example-read` | `recordId` z `@ResourceRef`, wzorzec i długość z kontraktu (`ExampleResourceModel`) | `{id, project, title, status}`; `not_found_or_denied` (brak rekordu, 404 i 403 z systemu, projekt `restricted`, rekord przeniesiony do takiego projektu, klasyfikacja nieznana), `access_denied` (brak grupy), `credential_required`, `invalid_argument`, `upstream_unavailable`, `internal_error` |
+| `search_records` | Szukaj rekordów | `READ_ONLY` | `read` | `mcp-example-read` | `project` (zakres, wzorzec z kontraktu), `text` (1-200 znaków); zapytanie do systemu buduje serwer | `{hits: [{id, title}]}`, najwyżej 50; link wirtualnego serwera zawęża zakres (`QueryScope`), hity są filtrowane polityką (`ResultFilter`) |
 
-Nazwa widziana przez klienta to `example__get_record` (prefiks dokłada gateway, C5).
+Nazwa widziana przez klienta to `example__get_record` (prefiks dokłada gateway, C5). Tytuły są częścią definicji
+narzędzia, więc ich zmiana zmienia `definitionHash`.
+
+Wybór zakresu: model podaje wartości (projekt, tekst), nigdy fragmentu języka zapytań. `QueryScope` daje
+zawężenie z linku (`linkIds()`), a gdzie system nie stosuje praw użytkownika, także zakresy z grup
+(`grantedIds()`, `grantsNothing()` = nie pytaj systemu). API budowania zapytań ze startera beta-2 zastąpi ręczne
+sprawdzenie zakresu w `search_records`.
 
 ## Jak przechodzi wywołanie
 
 ```
 gateway --mTLS (CN mcp-gateway) + JWT C2 (aud mcp-example, tool get_record) + X-MCP-Credential-->
   starter: InternalJwtFilter (inaczej 401) -> CredentialHeaderFilter -> AuditingToolCallback (C8)
-  -> ExampleTool.getRecord: walidacja recordId
-  -> ExampleService -> ExampleResourceAdapter: CredentialContext.require("example") + credential::applyTo
-  -> GET {MCP_EXAMPLE_URL}/api/records/{id}
+  -> starter: Cedar `call` na narzędziu (grupa, link), potem dla @ResourceRef:
+     ExampleRecordResolver -> ExampleResourceAdapter: CredentialContext + credential::applyTo
+     -> GET {MCP_EXAMPLE_URL}/api/records/{id}; opis zasobu (projekt i klasyfikacja Z SYSTEMU) -> Cedar `read`
+  -> ExampleTool.getRecord: rekord, który pobrał resolver (bez drugiego wywołania)
+  -> search_records: zakres z QueryScope -> ExampleService -> adapter -> GET /api/records?project=..&q=..
+     -> wynik filtrowany po @ResourceRef hitów
 ```
 
 Adapter nie podąża za przekierowaniami (nagłówek z poświadczeniem nie może pójść pod inny adres), czyta najwyżej
@@ -73,7 +84,19 @@ wyłącza TLS i mTLS, trzyma `jti` w pamięci i dopuszcza klucze testowe; starte
 | `MCP_EXAMPLE_ALLOW_PLAIN_HTTP` | `true` dopuszcza `http` poza `dev`, wyłącznie dla mocków `mcp-platform-dev` (poświadczenie idzie wtedy otwartym tekstem; ostrzeżenie w logu) | `false` |
 | `MCP_EXAMPLE_SSL_BUNDLE` | bundle SSL dla HTTPS systemu, np. `mcp-internal-ca`; puste = zaufanie JDK | puste |
 | `MCP_REDIS_HOST`, `MCP_REDIS_PORT`, `MCP_REDIS_USER`, `MCP_REDIS_PASSWORD` | Redis dla jednorazowego `jti` (użytkownik ACL `mcp-example`, klucze `jti:mcp-example:*`) | `localhost`, `6379`, `mcp-example`, puste |
+| `MCP_POLICY_URL` | `latest.json` kanału głównego paczki polityk (C7), `https` | wymagane |
+| `MCP_POLICY_KEY_ID`, `MCP_POLICY_PUBLIC_KEY_FILE` | identyfikator i plik klucza publicznego Ed25519 (SPKI PEM) paczki; klucze `test-*` są odrzucane poza `dev` | wymagane |
+| `MCP_POLICY_STATE_DIR` | katalog na instancję z rewizją ostatniej przyjętej paczki; chroni przed cofnięciem po restarcie | wymagane |
+| `MCP_INTERNAL_URL` | adres serwera w manifeście (`https://mcp-example.internal:8443/mcp`) | wymagane |
+| `MCP_ACCEPTED_CREDENTIAL_TYPES` | typy poświadczeń, które serwer przyjmuje (manifest) | `user-secret` |
 | `MCP_PORT`, `MCP_BIND` | port i adres nasłuchu | `8443`, `0.0.0.0` |
+
+Serwer nie wstaje bez pierwszej podpisanej paczki polityk w 30 s (`policy.startup-timeout`), a wersja w manifeście to
+wersja projektu. `GET /mcp-manifest` (wewnętrzny JWT serwisowy gateway'a) zwraca manifest C6 zbudowany z tego, co
+serwer naprawdę publikuje; służy do rejestracji w gateway'u (`manifest.output-file` zapisuje go też do pliku).
+W profilu `dev` paczka idzie z repozytorium polityk środowiska (`http://127.0.0.1:18747/policies/main/latest.json`,
+klucz `mcp-policies/keys/dev/test-policies-main-dev.public.pem`, względem katalogu repozytorium serwera), a
+`policy.allow-test-keys` jest włączone tylko tam.
 
 Endpoint MCP to `/mcp` (domyślne ustawienie startera, tak jak oczekuje gateway: `internal-url:
 https://mcp-example.internal:8443/mcp`). Bez JWT odpowiada tylko `/actuator/health` (i `liveness`,
@@ -155,15 +178,21 @@ handshake'u. Pełne wywołanie narzędzia wymaga gateway'a z hosta (`mcp-gateway
 
 | Klasa | Co sprawdza |
 | --- | --- |
-| `GetRecordToolTest` | poświadczenie z C3 dociera do systemu; `readOnlyHint`, `maxLength` i `pattern` w schemacie; brak poświadczenia i 401 systemu -> `credential_required`; 404 i 403 -> ten sam `not_found_or_denied`; zły `recordId` nie dociera do systemu i nie wraca w błędzie; nieczytelna odpowiedź 200 i rekord bez `id` -> `internal_error` bez treści w logu; przekierowanie nie jest wykonywane; timeout -> `upstream_unavailable`; za duża odpowiedź ucięta; poświadczenie nie trafia do wyniku ani logu |
+| `GetRecordToolTest` | poświadczenie z C3 dociera do systemu, jedno wywołanie na rekord; `readOnlyHint`, tytuł, zamknięty schemat, `maxLength` i `pattern`; brak poświadczenia i 401 systemu -> `credential_required`; 404 i 403 -> ten sam `not_found_or_denied`; zły `recordId` nie dociera do systemu i nie wraca w błędzie; nieczytelna odpowiedź 200 i rekord bez `id` -> `internal_error` bez treści w logu; przekierowanie nie jest wykonywane; timeout -> `upstream_unavailable`; za duża odpowiedź ucięta; poświadczenie nie trafia do wyniku ani logu |
+| `ResourcePolicyTest` | rekord w projekcie `restricted`, rekord przeniesiony do takiego projektu i rekord z nieznaną klasyfikacją dają `not_found_or_denied` identyczne jak nieistniejący; `access_denied` bez grupy i bez wywołania systemu; link zawężony do innego projektu ukrywa rekord; awaria systemu to nie odmowa |
+| `SearchRecordsToolTest` | wyniki bez rekordów zastrzeżonych i przeniesionych; link zawężony do jednego projektu nie zwraca rekordów spoza niego; wyszukiwanie poza linkiem jest puste i nie woła systemu; wartości od modelu nie zmieniają struktury zapytania; `credential_required`, `access_denied`, błędne argumenty |
+| `ManifestTest` | manifest przechodzi reguły gateway'a, definicje równe `tools/list` (zgodny `definitionHash`), tytuły i zamknięte schematy, `resourceRefs`, 401 bez JWT |
 | `GatewayOnlyAccessTest` | bez JWT 401 (`tools/call`, `ping`, `initialize`), JWT dla innego serwera, innego narzędzia, wariant serwisowy i przeterminowany -> 401; bez JWT tylko health; system zgodny z `SystemId` (albo jawnie próbny) |
-| `ProductionConfigurationTest` | konfiguracja bazowa: `client-auth: need`; backend `http` poza `dev` odrzucony (chyba że jawnie dopuszczony); `dev` na 127.0.0.1 |
-| `DevProfileLoopbackTest` | `dev` z adresem innym niż pętla zwrotna nie wstaje |
-| `ExampleToolTest` | walidacja `recordId` w kodzie (stały komunikat), te same limity w schemacie |
-| `ExampleServiceTest` | przypadek użycia bez Springa |
+| `ProductionConfigurationTest` | konfiguracja bazowa: `client-auth: need`, paczka polityk i manifest wymagane, bez kluczy testowych; klucze testowe i repozytorium polityk dev tylko w `application-dev.yml`; backend `http` poza `dev` odrzucony (chyba że jawnie dopuszczony); `dev` na 127.0.0.1 |
+| `DevProfileLoopbackTest` | reguła adresu `dev` (`assertDevProfileLoopbackRule`) i obecność guardów w kontekście serwera (`assertServerIsGuarded`) |
+| `ExampleToolTest` | walidacja tekstu wyszukiwania (stały komunikat), limity i zamknięte schematy obu narzędzi |
+| `ExampleServiceTest` | limit wyników wyszukiwania bez Springa |
 
 Nowe narzędzie dostaje test w tym samym stylu: klasa dziedziczy po `ServerTestSupport`, odpowiedź systemu
-dopisuje się w `StubBackend`.
+dopisuje się w `StubBackend`. Polityka w testach to przykładowa paczka kontraktów, która zna tylko pięć systemów z
+`SystemId`; serwer próbny (`--trial`) działa więc w testach pod tożsamością `mcp-jira` (`ServerTestSupport.POLICY_SYSTEM`).
+Identyfikatory przykładowych rekordów muszą pasować do wzorca typu zasobu z kontraktów (starter sprawdza go przed
+resolverem), dlatego `SampleScope` jest osobny dla każdego systemu.
 
 ## Dokumentacja
 

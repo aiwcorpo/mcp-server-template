@@ -44,4 +44,6 @@ tryb ASYNC.
 - Jeden system na serwer: `server-id` = `mcp-<system>`, `CredentialContext.require` innego systemu to błąd
   programisty.
 - Adapter nie podąża za przekierowaniami i nie czyta treści błędów systemu.
-- Ponawianie i circuit breaker w adapterze: M2 template'u (teraz tylko timeouty).
+- Zasób opisuje resolver w `mcp-integration` (typ, id i rodzic z odpowiedzi systemu), politykę ocenia starter przed
+  narzędziem i po nim (wyniki); narzędzie nie sprawdza dostępu samo.
+- Ponawianie i circuit breaker w adapterze: poza M3 (teraz tylko timeouty).

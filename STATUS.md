@@ -2,9 +2,50 @@
 
 M1: osiągnięty (2026-10-27) - template na starterze 3.0.0-alpha-10, `get_record` z poświadczeniem z C3, 401 bez JWT, `new-server.sh --trial demo` (i `new-server.sh jira`) buduje się i przechodzi testy bez zmian ręcznych.
 
-Starter: BOM `pl.aiwcorpo.mcp:mcp-platform-bom:3.0.0-alpha-11` (kontrakty 2.1.1, Spring Boot 4.1.0, Spring AI
-2.0.0, Java 25). M2 nie jest zaczęty. Commity: 7f65f8f (M1), c799e54 (uruchomienie lokalne, alpha-4), c1258c4
-(poprawki po recenzji M1, alpha-5), następny (alpha-10, patrz niżej).
+M3: osiągnięty (2026-10-28) - template na starterze 3.0.0-beta-1 (kontrakty 3.1.0): `@ToolTitle`, zamknięte schematy z `contractPattern`, `get_record` z `@ResourceRef` i `ResourceResolver`, `search_records` z `QueryScope` i `ResultFilter`, `policy.*` i `manifest.*` (dev i prod), `GET /mcp-manifest` zgodny z `tools/list`, `DevProfileLoopbackTest` z `assertServerIsGuarded`; `new-server.sh` generuje serwery jira, gitlab, confluence, servicedesk, opensearch i `--trial demo`, każdy buduje się i przechodzi `verify` (59 testów).
+
+Starter: BOM `pl.aiwcorpo.mcp:mcp-platform-bom:3.0.0-beta-1` (kontrakty 3.1.0, Spring Boot 4.1.0, Spring AI
+2.0.0, Java 25). Commity: 7f65f8f (M1), c799e54, c1258c4, 83b9f3c (alpha-10), 00f87f4, 80603f4 (alpha-11), następnie M3
+(patrz `git log`). Wyszukiwanie nie przyjmuje od modelu JQL/CQL; po wydaniu startera beta-2 (API budowania zapytań z
+ustrukturyzowanych filtrów) `searchRecords` w `ExampleTool` zostanie przestawione na to API.
+
+## M3: co zrobiono i co serwery muszą zrobić ponad MIGRATION startera
+
+Template: punkty 1-9 sekcji "Z alpha-14 na beta-1" (MIGRATION-3.0.md) plus alpha-12..14 (pierwszy test
+`DevProfileLoopbackTest` z `assertServerIsGuarded`, brak wykluczeń platformy). Czego MIGRATION nie mówi, a serwery
+na to trafią:
+
+1. Starter sprawdza wartość każdego `@ResourceRef` wzorcem kontraktu **swojego typu** przed resolverem
+   (`Jira::Issue` wymaga `^[A-Z][A-Z0-9_]{1,9}-[1-9][0-9]{0,9}$`, `ConfluencePageId` liczby itd.). Identyfikatory w
+   stubach i testach muszą pasować (`ABC-PARTIAL` daje `invalid_argument` zamiast zamierzonego błędu). Wzorzec argumentu:
+   `@ArgumentLimits(contractPattern = ...)`, nie własny regex.
+2. Przykładowa paczka polityk kontraktów (`TestGateway`) zna tylko pięć systemów i tylko ich typy: serwer próbny
+   (`--trial`) i template w testach udają `mcp-jira` (`ServerTestSupport.POLICY_SYSTEM`); adapter bierze system z
+   `server-id`, nie ze stałej. OpenSearch czyta tylko w zakresie grup `mcp-opensearch-idx-*` (potrzebne w tokenie
+   testowym), Jira `destructive` wymaga `mfaAgeSeconds(60)`. Klucz `vsc` linku zależy od systemu (`jiraProjects`,
+   `confluenceSpaces`, `gitlabGroups`, `servicedeskQueues`, `opensearchIndexPrefixes`).
+3. `@ResourceRef` na wyniku listy to jedno pytanie resolvera (czyli systemu) na każdy hit: wyszukiwanie ze 50 wynikami
+   robi do 50 wywołań `fetch`. Do pomiaru w serwerach z dużymi listami; cache jest na czas wywołania.
+4. Narzędzie czyta rekord z `ResourceContext.current().orElseThrow().fetched(typ, id, Klasa.class)`; własne
+   `RecordNotFoundException` i `ToolErrorMapping` dla "nie ma" przestają być potrzebne (resolver zwraca pusty
+   `Optional`, a starter odpowiada `not_found_or_denied`). Awaria systemu w resolverze to `internal_error` dla 5xx
+   (`upstream_unavailable` dla 502-504 i błędów I/O), nie odmowa.
+5. Atrybut klasyfikacji, którego system nie podał, trzeba pominąć, nie wypełniać `""`: pominięcie odrzuca zasób
+   (Jira `category`, Confluence `labels`, OpenSearch `tags`, GitLab `ancestorClassifications`). Wyjątek: kolejka service
+   desku (klasyfikacja opcjonalna).
+6. Konfiguracja: `manifest.internal-url` musi być `https` także w `dev`; `policy.main.public-key-file` w `dev` jest
+   względem katalogu, z którego startuje proces (repozytorium serwera: `../mcp-policies/keys/dev/...`); wersja
+   manifestu to `@project.version@` (`0.1.0-SNAPSHOT` jest poprawnym SemVer). Do plików środowiska i compose dochodzą
+   `MCP_POLICY_URL`, `MCP_POLICY_KEY_ID`, `MCP_POLICY_PUBLIC_KEY_FILE`, `MCP_POLICY_STATE_DIR`, `MCP_INTERNAL_URL`.
+7. Dockerfile nie może być oparty o Alpine (cedar-java, glibc): `eclipse-temurin:25-jre` z przypiętym digestem.
+8. Tekst z systemu po `normalize`: U+2028, U+2029 i U+0085 stają się spacją, brzegowe spacje zostają; testy
+   porównujące dokładny tekst trzeba poprawić (sekcja 4 MIGRATION).
+9. Wyszukiwanie: zakres jest argumentem (nie `@ResourceRef`), bo link zawężony do innych zakresów ma dać pusty wynik, nie
+   błąd; `total` z systemu nie jest zwracany. `DESTRUCTIVE` (Jira `delete_issue`): wzór w
+   `docs/jak-napisac-narzedzie.md`, template go nie zawiera (powstałby w każdym serwerze).
+
+Czego potrzebuje ws-02: `TestGateway` nie ma paczki dla systemu spoza `SystemId`, stąd tożsamość `mcp-jira` w testach
+serwera próbnego; paczka testowa z własną grupą dla `mcp-example` uprościłaby `ServerTestSupport`. Propozycje CC: brak.
 
 ## Co działa
 
@@ -64,16 +105,16 @@ cd <workspace>/mcp-server-template
 export JAVA_HOME=/opt/homebrew/Cellar/openjdk@25/25.0.4.1/libexec/openjdk.jdk/Contents/Home
 ./mvnw -B verify                           # raz: kontrakty w ~/.m2 (skrypt czyta z nich SystemId)
 ./new-server.sh jira                       # -> ../mcp-server-jira (nie może istnieć)
-cd ../mcp-server-jira && git init && ./mvnw -B verify   # 28 testów, bez zmian
+cd ../mcp-server-jira && git init && ./mvnw -B verify   # 59 testów, bez zmian
 ```
 
 Zamiany (`example`/`Example`/`EXAMPLE` -> `<system>`/`<System>`/`<SYSTEM>` w treści i ścieżkach) i lista tego,
 co serwer uzupełnia: `docs/nowy-serwer.md`. W skrócie: domena, ścieżki API i DTO w adapterze (GitLab:
 `PRIVATE-TOKEN` przez `credential.value()`), narzędzia z tabeli ws-04 z `@ArgumentLimits` i rejestracją przez
 `SchemaLimitedToolCallbacks.of(...)`, `StubBackend` i testy dla każdego narzędzia, README i katalog narzędzi,
-własny `STATUS.md`. `@ResourceRef`, `QueryScope`, `ResultFilter`, manifest C6 dopiero ze starterem beta (M2).
+własny `STATUS.md`. Od M3 template ma też resolver, `QueryScope`, `ResultFilter` i manifest; profile systemów w `profiles/`.
 
-## Zmiany do przeniesienia do serwerów (od alpha-10)
+## Zmiany do przeniesienia do serwerów (od alpha-10; stan sprzed M3)
 
 Zrobione w template'cie przy przejściu na 3.0.0-alpha-10 (z alpha-5); serwery jira i confluence mają to samo
 przeniesione (patrz ich STATUS.md). Serwer wygenerowany z tego commitu nie wymaga niczego z listy.
@@ -183,3 +224,13 @@ Brak.
 ## Runda 5: starter alpha-11 (2026-10-28)
 
 BOM alpha-10 -> alpha-11 (MIGRATION-3.0.md, sekcja "Zmiany w 3.0.0-alpha-11"). `DevProfileLoopbackTest` sprawdza regułę guarda przez `DevProfileGuardAssertions.assertDevProfileLoopbackRule()` (A10-M1), więc przechodzi także w kontenerze CI. `./mvnw clean verify`: 28 testów, 0 błędów; `INVOCATION_ID=ci ./mvnw -B verify`: bez różnic. Start lokalny w profilu `dev`: health 200, POST /mcp bez JWT 401.
+
+## Dowód M3 (2026-10-28)
+
+`./mvnw -B clean verify` w template: 59 testów, 0 błędów (mcp-app 55: `GetRecordToolTest` 17, `SearchRecordsToolTest` 14,
+`ResourcePolicyTest` 7, `ManifestTest` 6, `ProductionConfigurationTest` 5, `GatewayOnlyAccessTest` 4,
+`DevProfileLoopbackTest` 1 + `contractSystemIsKnown` w każdej klasie dziedziczącej; mcp-application 2, mcp-tools 2).
+`tests/new-server-test.sh --build`: wszystkie kontrole, w tym `verify` na wygenerowanych serwerach jira, gitlab,
+confluence, servicedesk, opensearch i `--trial demo` (generowane w scratchpadzie, nie w `mcp-server-*`). Mutacje:
+usunięcie `@ResourceRef` z hitu wyszukiwania oraz wyłączenie kontroli linku łamią `SearchRecordsToolTest`.
+Uruchomienia procesu hosta nie robiłem (testy idą przez `TestGateway` i stub backendu).

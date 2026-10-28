@@ -2,9 +2,9 @@
 
 M1: osiągnięty (2026-10-27) - template na starterze 3.0.0-alpha-10, `get_record` z poświadczeniem z C3, 401 bez JWT, `new-server.sh --trial demo` (i `new-server.sh jira`) buduje się i przechodzi testy bez zmian ręcznych.
 
-M3: osiągnięty (2026-10-28) - template na starterze 3.0.0-beta-3 (kontrakty 3.1.0; przestawiony z beta-1 i beta-2, patrz niżej): `@ToolTitle`, zamknięte schematy z `contractPattern`, `get_record` z `@ResourceRef` i `ResourceResolver`, `search_records` z `QueryScope` i `ResultFilter`, `policy.*` i `manifest.*` (dev i prod), `GET /mcp-manifest` zgodny z `tools/list`, `DevProfileLoopbackTest` z `assertServerIsGuarded`; `new-server.sh` generuje serwery jira, gitlab, confluence, servicedesk, opensearch i `--trial demo`, każdy buduje się i przechodzi `verify` (62 testy).
+M3: osiągnięty (2026-10-28) - template na starterze 3.0.0-beta-4 (kontrakty 3.1.0; przestawiony z beta-1, beta-2 i beta-3, patrz niżej): `@ToolTitle`, zamknięte schematy z `contractPattern`, `get_record` z `@ResourceRef` i `ResourceResolver`, `search_records` z `QueryScope` i `ResultFilter`, `policy.*` i `manifest.*` (dev i prod), `GET /mcp-manifest` zgodny z `tools/list`, `DevProfileLoopbackTest` z `assertServerIsGuarded`; `new-server.sh` generuje serwery jira, gitlab, confluence, servicedesk, opensearch i `--trial demo`, każdy buduje się i przechodzi `verify` (62 testy).
 
-Starter: BOM `pl.aiwcorpo.mcp:mcp-platform-bom:3.0.0-beta-3` (kontrakty 3.1.0, Spring Boot 4.1.0, Spring AI
+Starter: BOM `pl.aiwcorpo.mcp:mcp-platform-bom:3.0.0-beta-4` (kontrakty 3.1.0, Spring Boot 4.1.0, Spring AI
 2.0.0, Java 25). Commity: 7f65f8f (M1), c799e54, c1258c4, 83b9f3c (alpha-10), 00f87f4, 80603f4 (alpha-11), następnie M3
 (patrz `git log`). Wyszukiwanie nie przyjmuje od modelu JQL/CQL: `ExampleSearchQuery` buduje zapytanie przez `StructuredQuery`.
 
@@ -17,6 +17,10 @@ resolver ma `fetchAll` (jedno wołanie `?ids=` na wszystkie hity); test jednostk
 `TestResourceContext.open(...).withFetched(...)`; `@ResultWithoutResources` nie jest potrzebne (oba wyniki to rekordy;
 opisane w docs). Zmiana zachowania: rekord z nieznaną klasyfikacją kontenera to `internal_error` (kontrakt), nie
 `not_found_or_denied`; w wyniku listy taki element jest usuwany.
+
+## Z beta-3 na beta-4 (2026-10-28)
+
+Podbicie wersji; README ma przykład uruchomienia w stosie dev z profilem `devstack` (zgody w konfiguracji stosu, nie w obrazie).
 
 ## Z beta-2 na beta-3 (2026-10-28)
 

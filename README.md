@@ -1,6 +1,6 @@
 # mcp-example: serwer MCP platformy
 
-Serwer MCP dla systemu `example`, zbudowany na `mcp-platform-starter` 3.0.0-beta-2 (Java 25, Spring Boot
+Serwer MCP dla systemu `example`, zbudowany na `mcp-platform-starter` 3.0.0-beta-4 (Java 25, Spring Boot
 4.1.0, Spring AI 2.0.0, kontrakty `mcp-contracts` 3.1.0). Stoi wyłącznie za gateway'em platformy: przyjmuje
 ruch tylko po mTLS z wewnętrznym JWT gateway'a (C2), a do systemu docelowego woła z poświadczeniem
 użytkownika, które gateway dołącza do każdego żądania (C3). Bez poprawnego JWT odpowiada 401, nie ma trybu
@@ -175,6 +175,29 @@ curl -s -o /dev/null -w '%{http_code}\n' "${TLS[@]}" -X POST -H 'Content-Type: a
 Sprawdzone 2026-10-27 w czystej kopii `new-server.sh jira`. Połączenie bez certyfikatu klienta jest zrywane w
 handshake'u. Pełne wywołanie narzędzia wymaga gateway'a z hosta (`mcp-gateway/scripts/run-dev-host.sh`, JWKS na
 `localhost:18445`) skonfigurowanego na ten serwer.
+
+## Uruchomienie w stosie dev w kontenerach (profil `devstack`)
+
+`dev` jest zabroniony w kontenerze, więc usługa `mcp-example` w compose `mcp-platform-dev` działa z konfiguracją bazową
+(mTLS, Redis, https) i profilem `devstack`, który zdejmuje tylko zakaz kluczy `test-*` (klucze podpisu paczek polityk i
+JWT gateway'a stosu). Obie zgody ustawia konfiguracja stosu, nie obraz serwera:
+
+```yaml
+environment:
+  SPRING_PROFILES_ACTIVE: devstack              # jedyny aktywny profil
+  MCP_DEVSTACK_ACKNOWLEDGED: "true"
+  AIWCORPO_MCP_PLATFORM_DEVSTACK_ACKNOWLEDGED: "true"
+  AIWCORPO_MCP_PLATFORM_POLICY_ALLOW_TEST_KEYS: "true"
+  AIWCORPO_MCP_PLATFORM_POLICY_MAIN_KEY_ID: test-policies-main-dev
+  AIWCORPO_MCP_PLATFORM_INTERNAL_JWT_ALLOW_TEST_KEYS: "true"   # gdy gateway podpisuje kluczami testowymi
+  MCP_POLICY_URL: https://...                    # repozytorium paczek stosu (https)
+  MCP_POLICY_PUBLIC_KEY_FILE: /run/policy/test-policies-main-dev.public.pem
+  MCP_POLICY_STATE_DIR: /var/lib/mcp-example/policy-state
+```
+
+Reszta zostaje jak na produkcji (TLS i mTLS, Redis na `jti`, `policy.state-dir`). Każdy start loguje
+`WARN event=devstack_profile`, a metryka `mcp_server_devstack_active` ma wartość 1. Bez obu zgód albo z drugim profilem
+start jest odrzucany.
 
 ## Testy
 

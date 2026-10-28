@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -78,7 +79,7 @@ abstract class ServerTestSupport {
 
     /** The caller of most tests: a member of the read group of the system. */
     static void reader(TestGateway.Token user) {
-        user.username("jkowalski").groups(List.of(READ_GROUP));
+        user.username("jkowalski").groups(Stream.concat(Stream.of(READ_GROUP), SampleScope.EXTRA_GROUPS.stream()).toList());
     }
 
     /** As {@link #clientWithCredential}, with the caller's token shaped by {@code user} (claims of a link call). */

@@ -9,7 +9,9 @@
 # and renames the placeholder everywhere, in contents and paths:
 #   pl.aiwcorpo.mcp.example -> pl.aiwcorpo.mcp.<system>   (groupId, Java packages, directories)
 #   example / Example / EXAMPLE -> <system> / <System> / <SYSTEM>
-# Template-only files (this script, its test, STATUS.md, docs/nowy-serwer.md) are not copied. Afterwards no
+# The template's resource model is the Jira one. For another system the files under profiles/<system>/ (resource
+# types, how a record is described to the policy, test ids) replace their counterparts. Template-only files (this
+# script, its test, STATUS.md, docs/nowy-serwer.md, profiles/) are not copied. Afterwards no
 # "example" may remain; on any failure the target directory is removed.
 set -euo pipefail
 
@@ -97,12 +99,16 @@ mkdir "$target"
 while IFS= read -r file; do
     [[ -f "$file" ]] || continue
     case "$file" in
-        new-server.sh | tests/new-server-test.sh | STATUS.md | docs/nowy-serwer.md) continue ;;
+        new-server.sh | tests/new-server-test.sh | STATUS.md | docs/nowy-serwer.md | profiles/*) continue ;;
     esac
+    source="$file"
+    if [[ "$trial" == false && -f "profiles/$system/$file" ]]; then
+        source="profiles/$system/$file"
+    fi
     destination="$target/$(printf '%s' "$file" | rename)"
     mkdir -p "$(dirname "$destination")"
-    rename < "$file" > "$destination"
-    if [[ -x "$file" ]]; then
+    rename < "$source" > "$destination"
+    if [[ -x "$source" ]]; then
         chmod +x "$destination"
     fi
 done <<< "$files"

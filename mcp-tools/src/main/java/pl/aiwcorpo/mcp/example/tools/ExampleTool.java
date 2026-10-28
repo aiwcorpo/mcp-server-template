@@ -65,7 +65,9 @@ public class ExampleTool {
      * The model names the project and the text, never a query: the server builds the backend query. The project is
      * not a {@code @ResourceRef} on purpose, because a link that narrows the virtual server to other projects must
      * give an empty search, not an error that tells which projects exist. The link narrowing comes from
-     * {@link QueryScope}; the hits are filtered afterwards by their {@code @ResourceRef} component, which also removes
+     * {@link QueryScope}; the model never supplies a query language fragment (JQL, CQL), only values the server places
+     * into its own query. The starter's builder for structured filters (beta-2) replaces the manual link check below
+     * and plugs in at the same spot. The hits are filtered afterwards by their {@code @ResourceRef} component, which also removes
      * what the backend returns beyond the project (linked records) and what the policy refuses (restricted).
      */
     @Tool(name = "search_records", description = "Searches the titles of the records of one project for a text.")

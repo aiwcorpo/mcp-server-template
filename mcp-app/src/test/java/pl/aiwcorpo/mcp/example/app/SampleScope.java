@@ -1,5 +1,7 @@
 package pl.aiwcorpo.mcp.example.app;
 
+import java.util.List;
+
 /**
  * What differs between the systems in the tests of the resource policy: how ids look (they must match the contract
  * pattern of the resource type, which the starter checks before any resolver runs), the key of the link narrowing, and
@@ -17,6 +19,12 @@ final class SampleScope {
      * (ServiceDesk queue).
      */
     static final boolean UNKNOWN_CLASSIFICATION_REFUSED = true;
+
+    /** Groups of the test caller besides the read group: grants the policy needs to read anything (OpenSearch). */
+    static final List<String> EXTRA_GROUPS = List.of();
+
+    /** Searching this project makes the backend fail. */
+    static final String FAIL_PROJECT = "FAIL";
 
     static final String OPEN_PROJECT = "ABC";
     static final String OTHER_PROJECT = "DEF";

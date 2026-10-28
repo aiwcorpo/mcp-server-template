@@ -62,8 +62,6 @@ final class StubBackend {
     static final String REDIRECT = SampleScope.id(SampleScope.OPEN_PROJECT, 907);
     static final String SLOW = SampleScope.id(SampleScope.OPEN_PROJECT, 908);
     static final String HUGE = SampleScope.id(SampleScope.OPEN_PROJECT, 909);
-    /** Searching this project makes the backend fail. */
-    static final String FAIL_PROJECT = "FAIL";
     static final String MISSING = SampleScope.id(SampleScope.OPEN_PROJECT, 404);
 
     private static final String RECORDS = "/api/records/";
@@ -137,7 +135,7 @@ final class StubBackend {
         Map<String, List<String>> parameters = parameters(exchange.getRequestURI().getRawQuery());
         String project = parameters.getOrDefault("project", List.of("")).getFirst();
         String text = parameters.getOrDefault("q", List.of("")).getFirst().toLowerCase(Locale.ROOT);
-        if (FAIL_PROJECT.equals(project)) {
+        if (SampleScope.FAIL_PROJECT.equals(project)) {
             respond(exchange, 500, "{\"error\":\"boom\",\"seen\":\"" + authorization + "\"}");
             return;
         }

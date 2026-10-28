@@ -141,7 +141,7 @@ class GetRecordToolTest extends ServerTestSupport {
     @Test
     void anInvalidIdIsRejectedBeforeTheBackend() {
         try (McpSyncClient client = clientWithCredential(PAT)) {
-            for (String recordId : new String[] {"../admin", "ABC-1?x=1", "a".repeat(65), "", ".."}) {
+            for (String recordId : new String[] {"../admin", "ABC-1?x=1", "a".repeat(ExampleResourceModel.RECORD_ID_MAX_LENGTH + 1), "", ".."}) {
                 McpSchema.CallToolResult result = call(client, "get_record", Map.of("recordId", recordId));
 
                 // The MCP SDK checks the published schema first and answers in its own format (not C10, reported

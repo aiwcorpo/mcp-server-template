@@ -132,7 +132,7 @@ class SearchRecordsToolTest extends ServerTestSupport {
     @Test
     void aFailingBackendIsNotAnEmptyResult() {
         try (McpSyncClient client = clientWithCredential(PAT)) {
-            McpSchema.CallToolResult result = call(client, "search_records", search(StubBackend.FAIL_PROJECT, "report"));
+            McpSchema.CallToolResult result = call(client, "search_records", search(SampleScope.FAIL_PROJECT, "report"));
 
             assertThat(result.isError()).isTrue();
             assertThat(text(result)).contains("\"error\":\"internal_error\"").doesNotContain("boom").doesNotContain("example-pat");

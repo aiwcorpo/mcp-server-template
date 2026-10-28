@@ -42,14 +42,8 @@ abstract class ServerTestSupport {
      */
     static final boolean TRIAL_SYSTEM = true;
 
-    /**
-     * The sample policy bundles of the contracts permit the five real systems only. A trial system therefore runs
-     * its tests under the identity of Jira (server id, groups, credential system); the code under test does not know:
-     * it takes the system from the server id.
-     */
-    static final String POLICY_SYSTEM = TRIAL_SYSTEM ? "jira" : SYSTEM;
-    static final String SERVER_ID = "mcp-" + POLICY_SYSTEM;
-    static final String READ_GROUP = "mcp-" + POLICY_SYSTEM + "-read";
+    static final String SERVER_ID = "mcp-" + SYSTEM;
+    static final String READ_GROUP = SERVER_ID + "-read";
     static final String ENDPOINT = "/mcp";
     static final Set<String> CONTRACT_SYSTEMS = contractSystems();
 
@@ -94,11 +88,20 @@ abstract class ServerTestSupport {
         return client;
     }
 
-    /** The error a client gets when the user has not connected the account: C10 {@code credential_required} with the portal link. */
+    /**
+     * The starter sends only C10 errors valid against {@code tool-error.schema.json}, whose {@code system} is the
+     * closed {@code SystemId} list of the contracts. A trial system (outside the list) gets {@code internal_error}
+     * instead; a real system must get the full error with the portal link, never {@code internal_error}.
+     */
     static void assertCredentialRequired(McpSchema.CallToolResult result) {
         assertThat(result.isError()).isTrue();
-        assertThat(text(result)).contains("\"error\":\"credential_required\"", "\"system\":\"" + POLICY_SYSTEM + "\"",
-                "\"connectUrl\":\"http://localhost:18090/connections?system=" + POLICY_SYSTEM + "\"");
+        if (TRIAL_SYSTEM) {
+            assertThat(CONTRACT_SYSTEMS).as("a trial system is outside SystemId").doesNotContain(SYSTEM);
+            assertThat(text(result)).contains("\"error\":\"internal_error\"");
+        } else {
+            assertThat(text(result)).contains("\"error\":\"credential_required\"", "\"system\":\"" + SYSTEM + "\"",
+                    "\"connectUrl\":\"http://localhost:18090/connections?system=" + SYSTEM + "\"");
+        }
     }
 
     /** A real server's system is one of the contracts'; a trial one is not. */

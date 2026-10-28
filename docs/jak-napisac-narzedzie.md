@@ -114,11 +114,13 @@ kontekst: `TestResourceContext.open("get_record", Map.of("recordId", "ABC-1")).w
 
 ## Serwer przykładowy i testy
 
-`TestGateway.start("mcp-example")` publikuje paczkę z regułami `call` dla grup `mcp-example-read|write|destructive`, ale bez
-reguł `read` na zasobach i bez reguł `restricted`, więc narzędzia z `@ResourceRef` zawsze dostałyby odmowę. Testy template'u
-udają dlatego `mcp-jira` (`ServerTestSupport.POLICY_SYSTEM`). Serwer spoza pięciu systemów kontraktów ma też manifest
-odrzucany przez enum `serverId` (`server-manifest.schema.json`): w `dev` to ostrzeżenie `event=manifest_rejected_by_rules`, poza
-`dev` taki serwer nie wstanie. Wygenerowany `--trial` działa więc tylko w `dev`.
+`TestGateway.start("mcp-example")` publikuje paczkę z regułami z przykładów kontraktów (`call`, odczyt, zapis w zakresie,
+`restricted`, zawężenie linku) dla grup `mcp-example-read|write|destructive`, więc testy template'u działają na `mcp-example`.
+Serwer spoza pięciu systemów kontraktów ma jednak manifest odrzucany przez enum `serverId` (`server-manifest.schema.json`): w
+`dev` to ostrzeżenie `event=manifest_rejected_by_rules`, poza `dev` taki serwer nie wstanie. Dlatego wygenerowany `--trial`
+działa tylko w `dev`, `ManifestTest` pomija go (`assumeFalse(TRIAL_SYSTEM)`), a `credential_required` jest w nim
+`internal_error` (C10 zna tylko `SystemId`). Wynik narzędzia będący tekstem (`String`, `List<String>`) wymaga
+`@ResultWithoutResources`.
 
 ## Narzędzie `DESTRUCTIVE`
 

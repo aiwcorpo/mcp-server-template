@@ -23,6 +23,13 @@ import tools.jackson.databind.json.JsonMapper;
  */
 class ManifestTest extends ServerTestSupport {
 
+    @org.junit.jupiter.api.BeforeEach
+    void onlyForTheSystemsOfTheContracts() {
+        org.junit.jupiter.api.Assumptions.assumeFalse(TRIAL_SYSTEM,
+                "serverId of the manifest schema is the enum of the contracts: a trial server's manifest is rejected (a warning in dev)");
+    }
+
+
     private static final JsonMapper JSON = JsonMapper.builder().build();
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(5)).build();
 
@@ -73,7 +80,7 @@ class ManifestTest extends ServerTestSupport {
 
         assertThat(ManifestRules.violations(manifest.toString())).isEmpty();
         assertThat(manifest.get("serverId").asString()).isEqualTo(SERVER_ID);
-        assertThat(manifest.get("system").asString()).isEqualTo(POLICY_SYSTEM);
+        assertThat(manifest.get("system").asString()).isEqualTo(SYSTEM);
     }
 
     @Test

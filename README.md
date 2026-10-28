@@ -191,8 +191,9 @@ handshake'u. Pełne wywołanie narzędzia wymaga gateway'a z hosta (`mcp-gateway
 | `ExampleServiceTest` | limit wyników wyszukiwania bez Springa |
 
 Nowe narzędzie dostaje test w tym samym stylu: klasa dziedziczy po `ServerTestSupport`, odpowiedź systemu
-dopisuje się w `StubBackend`. Polityka w testach to przykładowa paczka kontraktów, która zna tylko pięć systemów z
-`SystemId`; serwer próbny (`--trial`) działa więc w testach pod tożsamością `mcp-jira` (`ServerTestSupport.POLICY_SYSTEM`). `TestGateway.start("mcp-example")` generuje paczkę tylko z regułami `call`, bez `read` i bez reguł `restricted`, więc testy zasobów nie miałyby czego sprawdzać (każdy odczyt byłby odmową).
+dopisuje się w `StubBackend`. Polityka w testach to paczka z przykładów kontraktów (`TestGateway`; dla serwera spoza pięciu systemów
+generowana: grupy `mcp-<system>-read|write|destructive`, odczyt, `restricted`, link). Serwer próbny nie ma poprawnego manifestu
+(`serverId` jest enumem), więc `ManifestTest` pomija go, a `credential_required` jest w nim `internal_error`. 
 Identyfikatory przykładowych rekordów muszą pasować do wzorca typu zasobu z kontraktów (starter sprawdza go przed
 resolverem), dlatego `SampleScope` jest osobny dla każdego systemu.
 

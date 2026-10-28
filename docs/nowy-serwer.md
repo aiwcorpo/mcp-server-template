@@ -25,9 +25,8 @@ wstają poza profilem `dev`, i tylko dla nich `mcp-platform-dev` ma certyfikaty 
 wymaga `--trial` (małe litery i cyfry, nie `platform`, `audit`, słowa kluczowe Javy); serwer próbny buduje się,
 przechodzi testy (oczekują `internal_error` zamiast `credential_required`) i działa w `dev` z ostrzeżeniem.
 Dla nazwy z listy skrypt ustawia `TRIAL_SYSTEM = false` w `ServerTestSupport`, a test `contractSystemIsKnown`
-pilnuje zgodności. Przykładowa paczka polityk kontraktów, na której działają testy, zna tylko te pięć systemów, więc
-serwer próbny uruchamia w testach tożsamość `mcp-jira` (`ServerTestSupport.POLICY_SYSTEM`); kod serwera tego nie widzi,
-bo system bierze z `server-id`.
+pilnuje zgodności. Testy serwera próbnego i template'u działają na `mcp-<nazwa>` z paczką generowaną przez `TestGateway`;
+`ManifestTest` ich nie wykonuje, bo manifest serwera spoza `SystemId` jest odrzucany (patrz `docs/jak-napisac-narzedzie.md`).
 
 ### Profile systemów
 

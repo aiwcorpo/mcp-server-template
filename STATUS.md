@@ -2,9 +2,9 @@
 
 M1: osiągnięty (2026-10-27) - template na starterze 3.0.0-alpha-10, `get_record` z poświadczeniem z C3, 401 bez JWT, `new-server.sh --trial demo` (i `new-server.sh jira`) buduje się i przechodzi testy bez zmian ręcznych.
 
-M3: osiągnięty (2026-10-28) - template na starterze 3.0.0-beta-2 (kontrakty 3.1.0; przestawiony z beta-1, patrz niżej): `@ToolTitle`, zamknięte schematy z `contractPattern`, `get_record` z `@ResourceRef` i `ResourceResolver`, `search_records` z `QueryScope` i `ResultFilter`, `policy.*` i `manifest.*` (dev i prod), `GET /mcp-manifest` zgodny z `tools/list`, `DevProfileLoopbackTest` z `assertServerIsGuarded`; `new-server.sh` generuje serwery jira, gitlab, confluence, servicedesk, opensearch i `--trial demo`, każdy buduje się i przechodzi `verify` (62 testy).
+M3: osiągnięty (2026-10-28) - template na starterze 3.0.0-beta-3 (kontrakty 3.1.0; przestawiony z beta-1 i beta-2, patrz niżej): `@ToolTitle`, zamknięte schematy z `contractPattern`, `get_record` z `@ResourceRef` i `ResourceResolver`, `search_records` z `QueryScope` i `ResultFilter`, `policy.*` i `manifest.*` (dev i prod), `GET /mcp-manifest` zgodny z `tools/list`, `DevProfileLoopbackTest` z `assertServerIsGuarded`; `new-server.sh` generuje serwery jira, gitlab, confluence, servicedesk, opensearch i `--trial demo`, każdy buduje się i przechodzi `verify` (62 testy).
 
-Starter: BOM `pl.aiwcorpo.mcp:mcp-platform-bom:3.0.0-beta-2` (kontrakty 3.1.0, Spring Boot 4.1.0, Spring AI
+Starter: BOM `pl.aiwcorpo.mcp:mcp-platform-bom:3.0.0-beta-3` (kontrakty 3.1.0, Spring Boot 4.1.0, Spring AI
 2.0.0, Java 25). Commity: 7f65f8f (M1), c799e54, c1258c4, 83b9f3c (alpha-10), 00f87f4, 80603f4 (alpha-11), następnie M3
 (patrz `git log`). Wyszukiwanie nie przyjmuje od modelu JQL/CQL: `ExampleSearchQuery` buduje zapytanie przez `StructuredQuery`.
 
@@ -18,13 +18,14 @@ resolver ma `fetchAll` (jedno wołanie `?ids=` na wszystkie hity); test jednostk
 opisane w docs). Zmiana zachowania: rekord z nieznaną klasyfikacją kontenera to `internal_error` (kontrakt), nie
 `not_found_or_denied`; w wyniku listy taki element jest usuwany.
 
-Odstępstwo od polecenia: `TestGateway.start("mcp-example")` NIE zastępuje udawania `mcp-jira`. Wygenerowana paczka
-(`publishGenerated`) ma tylko reguły `call`, bez `read` na zasobach i bez reguł `restricted`, więc każdy odczyt przez
-`@ResourceRef` jest odmową i testy zasobów nie miałyby czego sprawdzać (sprawdziłem: 9 testów pada, a testy odmów
-przechodzą na pusto). `ServerTestSupport.POLICY_SYSTEM` zostaje; opis i ostrzeżenie o manifeście serwera spoza enumu
-`serverId` (ostrzeżenie w `dev`, poza `dev` brak startu) jest w `docs/jak-napisac-narzedzie.md`. Prośba do ws-02:
-`publishGenerated` z regułami `read` i `restricted` dla `Jira::`-podobnych typów (albo ogólnymi) pozwoliłaby użyć
-`mcp-example` w testach. Beta-3 (poprawka walidatora) to to samo podbicie wersji w `pom.xml`.
+## Z beta-2 na beta-3 (2026-10-28)
+
+Podbicie wersji w `pom.xml`. `TestGateway.start("mcp-example")` ma w beta-3 reguły zasobów, więc testy template'u (i serwera
+próbnego) działają na `mcp-example`, bez udawania `mcp-jira`: `ServerTestSupport.POLICY_SYSTEM` usunięte, `ManifestTest`
+pomija serwer próbny (manifest `serverId` poza enumem kontraktów jest odrzucany, w `dev` to ostrzeżenie; opis w
+`docs/jak-napisac-narzedzie.md`), a `credential_required` w serwerze próbnym jest `internal_error`. Nowe narzędzie z wynikiem
+tekstowym wymaga `@ResultWithoutResources` (template zwraca rekordy, więc nie dotyczy). Testy: 62 (6 z `ManifestTest`
+pominięte w template'cie, wykonywane w 5 wygenerowanych serwerach).
 
 ## M3: co zrobiono i co serwery muszą zrobić ponad MIGRATION startera
 
@@ -36,9 +37,7 @@ na to trafią:
    (`Jira::Issue` wymaga `^[A-Z][A-Z0-9_]{1,9}-[1-9][0-9]{0,9}$`, `ConfluencePageId` liczby itd.). Identyfikatory w
    stubach i testach muszą pasować (`ABC-PARTIAL` daje `invalid_argument` zamiast zamierzonego błędu). Wzorzec argumentu:
    `@ArgumentLimits(contractPattern = ...)`, nie własny regex.
-2. Przykładowa paczka polityk kontraktów (`TestGateway`) zna tylko pięć systemów i tylko ich typy: serwer próbny
-   (`--trial`) i template w testach udają `mcp-jira` (`ServerTestSupport.POLICY_SYSTEM`); adapter bierze system z
-   `server-id`, nie ze stałej. OpenSearch czyta tylko w zakresie grup `mcp-opensearch-idx-*` (potrzebne w tokenie
+2. Paczka polityk `TestGateway` zna typy zasobów Jira/Confluence/GitLab/...; adapter bierze system z `server-id`, nie ze stałej. OpenSearch czyta tylko w zakresie grup `mcp-opensearch-idx-*` (potrzebne w tokenie
    testowym), Jira `destructive` wymaga `mfaAgeSeconds(60)`. Klucz `vsc` linku zależy od systemu (`jiraProjects`,
    `confluenceSpaces`, `gitlabGroups`, `servicedeskQueues`, `opensearchIndexPrefixes`).
 3. `@ResourceRef` na wyniku listy to jedno pytanie resolvera (czyli systemu) na każdy hit: wyszukiwanie ze 50 wynikami

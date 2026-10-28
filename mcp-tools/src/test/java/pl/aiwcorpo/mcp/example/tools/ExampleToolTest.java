@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.ai.tool.ToolCallback;
 import pl.aiwcorpo.mcp.example.core.domain.ExampleRecord;
 import pl.aiwcorpo.mcp.platform.error.InvalidToolArgumentException;
+import pl.aiwcorpo.mcp.platform.input.SchemaLimitedToolCallbacks;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 

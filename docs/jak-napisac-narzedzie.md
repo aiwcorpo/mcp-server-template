@@ -17,11 +17,14 @@ do modelu, który może go potraktować jak instrukcję. Wzorcem jest `get_recor
    `@JsonIgnoreProperties(ignoreUnknown = true)`, potem do domeny; brak wymaganych pól to błąd systemu, nie
    `IllegalArgumentException` (to byłby `invalid_argument`, czyli wina modelu).
 4. `mcp-tools`: cienka metoda `@Tool` z `@ToolRisk`, walidacją argumentów i wywołaniem przypadku użycia;
-   mapowanie wyjątku domeny na kod C10 w `ExampleToolErrors`. Każdy argument tekstowy ma
-   `@ArgumentLimits(maxLength = ..., pattern = "^...$")` z tymi samymi stałymi, których używa walidacja w kodzie
-   (wzorzec: `ExampleTool.RECORD_ID_PATTERN`); limity trafiają do `inputSchema`, więc widzą je gateway i
-   manifest C6. `pattern` w JSON Schema nie jest kotwiczony: zawsze `^` i `$`.
-5. `mcp-app`: dopisanie beana narzędzia w `McpToolsConfiguration` przez `SchemaLimitedToolCallbacks.of(...)`
+   mapowanie wyjątku domeny na kod C10 w `ExampleToolErrors`. Limity na każdym poziomie schematu, przez
+   `pl.aiwcorpo.mcp.platform.input.ArgumentLimits` ze startera: `maxLength` (i `pattern` zakotwiczony `^...$`) na
+   tekście, `minimum` i `maximum` na liczbie, `maxItems` na liście, rekord z limitami na komponentach i
+   `@Nullable` na opcjonalnych; `Map` i `Object` są zabronione, start się zatrzymuje. Te same stałe służą
+   walidacji w kodzie (wzorzec: `ExampleTool.RECORD_ID_PATTERN`). Wynik to rekord (`ExampleRecordView`): tekst
+   z systemu jako `UntrustedText`, pole, które system może zostawić puste, jako `@Nullable`, bez adnotacji
+   Jacksona na komponentach.
+5. `mcp-app`: dopisanie beana narzędzia w `McpToolsConfiguration` przez `SchemaLimitedToolCallbacks.of(...)` ze startera
    (jawna lista; sam `@Tool` nie wystarczy, a `MethodToolCallbackProvider` pominąłby `@ArgumentLimits`),
    test w `mcp-app/src/test` przez `ServerTestSupport`, odpowiedź systemu w `StubBackend`.
 6. `docs/api/tools-catalog.md` i tabela narzędzi w README.

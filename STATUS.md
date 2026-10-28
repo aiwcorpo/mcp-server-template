@@ -1,10 +1,10 @@
 # STATUS - mcp-server-template (ws-03)
 
-M1: osiągnięty (2026-10-27) - template na starterze 3.0.0-alpha-5, `get_record` z poświadczeniem z C3, 401 bez JWT, `new-server.sh --trial demo` (i `new-server.sh jira`) buduje się i przechodzi testy bez zmian ręcznych.
+M1: osiągnięty (2026-10-27) - template na starterze 3.0.0-alpha-10, `get_record` z poświadczeniem z C3, 401 bez JWT, `new-server.sh --trial demo` (i `new-server.sh jira`) buduje się i przechodzi testy bez zmian ręcznych.
 
-Starter: BOM `pl.aiwcorpo.mcp:mcp-platform-bom:3.0.0-alpha-5` (kontrakty 2.0.2, Spring Boot 4.1.0, Spring AI
-2.0.0, Java 25). M2 nie jest zaczęty. Commity: 7f65f8f (M1), c799e54 (uruchomienie lokalne, alpha-4), bieżący
-(poprawki po recenzji M1, alpha-5).
+Starter: BOM `pl.aiwcorpo.mcp:mcp-platform-bom:3.0.0-alpha-10` (kontrakty 2.1.1, Spring Boot 4.1.0, Spring AI
+2.0.0, Java 25). M2 nie jest zaczęty. Commity: 7f65f8f (M1), c799e54 (uruchomienie lokalne, alpha-4), c1258c4
+(poprawki po recenzji M1, alpha-5), następny (alpha-10, patrz niżej).
 
 ## Co działa
 
@@ -31,6 +31,11 @@ Starter: BOM `pl.aiwcorpo.mcp:mcp-platform-bom:3.0.0-alpha-5` (kontrakty 2.0.2, 
   śledzone przez git; przy błędzie cel jest usuwany; dla nazwy z listy ustawia `TRIAL_SYSTEM = false`.
 - Dockerfile, unit systemd (dodane `CapabilityBoundingSet=`, `SystemCallFilter=@system-service`, `ProtectProc`,
   `UMask`), `install.sh` tworzy plik środowiska 0640 root:mcp i działa z dowolnego katalogu.
+
+## Dowód (2026-10-28, alpha-10)
+
+`./mvnw -B clean verify`: 23 testy, 0 błędów (`GetRecordToolTest` 15, w tym wywołanie z `vs`/`vsc`).
+Poniżej dowód z alpha-5 (2026-10-27), skrypty `new-server.sh` bez zmian.
 
 ## Dowód (2026-10-27, alpha-5)
 
@@ -68,7 +73,29 @@ co serwer uzupełnia: `docs/nowy-serwer.md`. W skrócie: domena, ścieżki API i
 `SchemaLimitedToolCallbacks.of(...)`, `StubBackend` i testy dla każdego narzędzia, README i katalog narzędzi,
 własny `STATUS.md`. `@ResourceRef`, `QueryScope`, `ResultFilter`, manifest C6 dopiero ze starterem beta (M2).
 
-## Zmiany do przeniesienia do serwerów (od 7f65f8f)
+## Zmiany do przeniesienia do serwerów (od alpha-10)
+
+Zrobione w template'cie przy przejściu na 3.0.0-alpha-10 (z alpha-5); serwery jira i confluence mają to samo
+przeniesione (patrz ich STATUS.md). Serwer wygenerowany z tego commitu nie wymaga niczego z listy.
+
+1. `pom.xml`: `<mcp-platform.version>3.0.0-alpha-10</mcp-platform.version>`.
+2. `mcp-tools`: usunięte lokalne `ArgumentLimits.java` i `SchemaLimitedToolCallbacks.java`; importy
+   `pl.aiwcorpo.mcp.platform.input.ArgumentLimits` i `...input.SchemaLimitedToolCallbacks` (też w
+   `McpToolsConfiguration` i testach). Adnotacja ze startera ma `minLength`, `maxLength`, `pattern`,
+   `contractPattern`, `maxItems`, `minItems`, `minimum`, `maximum` i działa na rekordach; liczby, listy i
+   komponenty rekordów bez limitów zatrzymują start. `StrictArgumentsInterceptor` nigdy nie było w template'cie.
+3. Wynik narzędzia: `ExampleRecordView` (`title` jako `UntrustedText`, `status` `@Nullable`) zamiast domeny.
+   Nowe serwery mapują domenę na rekord wyniku w `mcp-tools`; kolejność dla tekstu z systemu: konwersja,
+   `TextHygiene.normalize`, `UntrustedText.cut`, filtr serwera, `plainCut|markdownCut` (bez filtra wystarczy
+   `UntrustedText.plain`). Test `GetRecordToolTest` sprawdza `text` i `kind` zamiast gołego `title`.
+4. `application-dev.yml`: usunięte `replay-store: memory` i `mtls.required: false` (starter w profilu `dev` robi
+   to sam, razem z `server.ssl.enabled=false` i pustym `jwks-ssl-bundle`). `allow-test-keys` zostaje.
+5. Testy: `ServerTestSupport.clientWithToken(...)` i `GetRecordToolTest.acceptsTheVirtualServerClaimsOfACallThroughALink`
+   (JWT z `vs` i `vsc:{}`, jak od gateway'a M2 przy wywołaniu przez link) przechodzi.
+6. `SPRING_PROFILES_ACTIVE=dev` nie może być w `.env`, compose, jednostce systemd ani obrazie (start odmawia);
+   template tego nie ustawia, `dev` tylko w komendzie z README.
+
+## Zmiany do przeniesienia do serwerów (od 7f65f8f, już zrobione w jira i confluence do alpha-6)
 
 Serwery ws-04 wygenerowane z 7f65f8f. Najprościej: wygenerować świeżą kopię z tą samą nazwą obok i przenieść
 pliki z listy (nazwy po zamianie, przykład dla `jira`; `<S>` = `Jira`, `<s>` = `jira`):
@@ -139,8 +166,7 @@ diff -ru /tmp/mcp-server-jira-ref <repo serwera> -x .git -x target
   `MCP_JIRA_ALLOW_PLAIN_HTTP: "true"`, dopóki mock Jiry jest po `http` (serwer poza `dev` przyjmuje tylko `https`).
   Alternatywa: mock po TLS z CA wewnętrznym i `MCP_JIRA_SSL_BUNDLE: mcp-internal-ca`. `MCP_REDIS_KEY_PREFIX`
   nie jest czytany (prefiks wynika z `server-id`), nieszkodliwy. `MCP_CONNECT_URL` już jest.
-- ws-02: L5 (błąd walidacji schematu w formacie C10). `SchemaLimitedToolCallbacks`/`@ArgumentLimits` lepiej
-  pasują do startera (pięć serwerów kopiuje ten sam kod); template przejdzie na wersję ze startera, gdy będzie.
+- ws-02: L5 zamknięte w starterze, template używa już `ArgumentLimits` i `SchemaLimitedToolCallbacks` ze startera.
 - ws-04: sekcja "Zmiany do przeniesienia do serwerów (od 7f65f8f)" wyżej; nowe serwery od bieżącego commitu.
 - ws-05: bez zmian (`/mcp`, SAN `mcp-<system>.internal`, JWKS gateway'a).
 

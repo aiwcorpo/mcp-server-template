@@ -4,7 +4,7 @@ import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import pl.aiwcorpo.mcp.example.tools.ExampleTool;
-import pl.aiwcorpo.mcp.example.tools.SchemaLimitedToolCallbacks;
+import pl.aiwcorpo.mcp.platform.input.SchemaLimitedToolCallbacks;
 
 /**
  * The tool set of the server, as an explicit list: the MCP server exposes only tools registered through a

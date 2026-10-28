@@ -4,11 +4,11 @@ import java.util.regex.Pattern;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Service;
-import pl.aiwcorpo.mcp.example.core.domain.ExampleRecord;
 import pl.aiwcorpo.mcp.example.core.port.in.ExampleUseCase;
 import pl.aiwcorpo.mcp.platform.error.InvalidToolArgumentException;
 import pl.aiwcorpo.mcp.platform.guard.RiskLevel;
 import pl.aiwcorpo.mcp.platform.guard.ToolRisk;
+import pl.aiwcorpo.mcp.platform.input.ArgumentLimits;
 
 /**
  * The MCP tools of this server. Each public {@code @Tool} method is a capability an AI client can call
@@ -39,10 +39,10 @@ public class ExampleTool {
 
     @Tool(name = "get_record", description = "Returns one record by its id: id, project, title and status.")
     @ToolRisk(RiskLevel.READ_ONLY)
-    public ExampleRecord getRecord(
+    public ExampleRecordView getRecord(
             @ToolParam(description = "Record id: letters, digits, '-' or '_', at most 64 characters")
             @ArgumentLimits(maxLength = RECORD_ID_MAX_LENGTH, pattern = RECORD_ID_PATTERN) String recordId) {
-        return useCase.getRecord(validRecordId(recordId));
+        return ExampleRecordView.of(useCase.getRecord(validRecordId(recordId)));
     }
 
     private static String validRecordId(String recordId) {

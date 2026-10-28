@@ -1,7 +1,7 @@
 # mcp-example: serwer MCP platformy
 
-Serwer MCP dla systemu `example`, zbudowany na `mcp-platform-starter` 3.0.0-alpha-5 (Java 25, Spring Boot
-4.1.0, Spring AI 2.0.0, kontrakty `mcp-contracts` 2.0.2). Stoi wyłącznie za gateway'em platformy: przyjmuje
+Serwer MCP dla systemu `example`, zbudowany na `mcp-platform-starter` 3.0.0-alpha-10 (Java 25, Spring Boot
+4.1.0, Spring AI 2.0.0, kontrakty `mcp-contracts` 2.1.1). Stoi wyłącznie za gateway'em platformy: przyjmuje
 ruch tylko po mTLS z wewnętrznym JWT gateway'a (C2), a do systemu docelowego woła z poświadczeniem
 użytkownika, które gateway dołącza do każdego żądania (C3). Bez poprawnego JWT odpowiada 401, nie ma trybu
 anonimowego.
@@ -27,7 +27,7 @@ JWKS z kluczy testowych kontraktów i podpisuje wewnętrzne JWT, a `StubBackend`
 | `mcp-core` | domena i porty, czysta Java | `ExampleRecord`, `RecordNotFoundException`, port wejściowy `ExampleUseCase`, port wyjściowy `ExampleResourcePort` |
 | `mcp-application` | przypadki użycia (bez Springa) | `ExampleService` |
 | `mcp-integration` | adaptery wyjściowe do systemu | `ExampleResourceAdapter` (REST, poświadczenie z C3, timeouty, bez przekierowań, `https` poza `dev`), `BoundedBodyInterceptor` (limit rozmiaru odpowiedzi), `BackendResponseException` (odpowiedź bez treści w komunikacie), `ExampleBackendProperties` |
-| `mcp-tools` | narzędzia MCP, powierzchnia publiczna | `ExampleTool` (`get_record`), `ExampleToolErrors` (wyjątki domeny -> kody C10), `@ArgumentLimits` i `SchemaLimitedToolCallbacks` (limity argumentów w `inputSchema`) |
+| `mcp-tools` | narzędzia MCP, powierzchnia publiczna | `ExampleTool` (`get_record`), `ExampleToolErrors` (wyjątki domeny -> kody C10), `ExampleRecordView` (wynik z `UntrustedText`); `@ArgumentLimits` i `SchemaLimitedToolCallbacks` pochodzą ze startera (limity argumentów w `inputSchema`) |
 | `mcp-app` | bootstrap, wiring, jedyny jar, testy end-to-end | `McpServerApplication`, `McpToolsConfiguration` (lista narzędzi), `ApplicationWiringConfiguration` |
 
 Zależności idą do środka: `mcp-tools` -> `mcp-application` -> `mcp-core` <- `mcp-integration`; `mcp-app` składa
@@ -90,7 +90,7 @@ tylko w profilu `dev`, z ostrzeżeniem w logu.
 
 ## Uruchomienie lokalne bez środowiska
 
-Profil `dev` (musi być jedynym aktywnym profilem): zwykłe HTTP na 127.0.0.1, `jti` w pamięci, bez Redisa,
+Profil `dev` (musi być jedynym aktywnym profilem; start odmawia, gdy `SPRING_PROFILES_ACTIVE=dev` trafi do `.env`, compose, jednostki systemd albo obrazu): zwykłe HTTP na 127.0.0.1, `jti` w pamięci, bez Redisa,
 certyfikatów i sekretów. Gateway'a nie ma, więc każde żądanie z JWT kończy się 503 (JWKS niedostępny); ten tryb
 służy do sprawdzenia, że serwer wstaje i odrzuca ruch bez JWT. Narzędzia sprawdzają testy (`./mvnw verify`).
 

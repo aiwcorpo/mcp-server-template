@@ -38,9 +38,20 @@ class GetRecordToolTest extends ServerTestSupport {
 
             assertThat(result.isError()).isFalse();
             assertThat(text(result))
-                    .contains("\"id\":\"ABC-1\"", "\"project\":\"ABC\"", "\"title\":\"Quarterly report\"")
+                    .contains("\"id\":\"ABC-1\"", "\"project\":\"ABC\"", "\"text\":\"Quarterly report\"", "\"kind\":\"untrusted-data\"")
                     .as("fields outside the domain record stay in the adapter").doesNotContain("internalNotes");
             assertThat(BACKEND.authorizations()).containsExactly(PAT);
+        }
+    }
+
+    @Test
+    void acceptsTheVirtualServerClaimsOfACallThroughALink() {
+        try (McpSyncClient client = clientWithToken(
+                user -> user.username("jkowalski").virtualServer("team-reports", Map.of()), PAT)) {
+            McpSchema.CallToolResult result = call(client, "get_record", Map.of("recordId", "ABC-1"));
+
+            assertThat(result.isError()).isFalse();
+            assertThat(text(result)).contains("\"id\":\"ABC-1\"");
         }
     }
 

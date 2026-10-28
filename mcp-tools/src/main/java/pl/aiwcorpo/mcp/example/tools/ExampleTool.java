@@ -5,7 +5,6 @@ import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Service;
 import pl.aiwcorpo.mcp.example.core.domain.ExampleRecord;
-import pl.aiwcorpo.mcp.example.core.domain.ExampleRecordHit;
 import pl.aiwcorpo.mcp.example.core.domain.ExampleResourceModel;
 import pl.aiwcorpo.mcp.example.core.port.in.ExampleUseCase;
 import pl.aiwcorpo.mcp.platform.error.InvalidToolArgumentException;
@@ -62,13 +61,12 @@ public class ExampleTool {
     }
 
     /**
-     * The model names the project and the text, never a query: the server builds the backend query. The project is
-     * not a {@code @ResourceRef} on purpose, because a link that narrows the virtual server to other projects must
-     * give an empty search, not an error that tells which projects exist. The link narrowing comes from
-     * {@link QueryScope}; the model never supplies a query language fragment (JQL, CQL), only values the server places
-     * into its own query. The starter's builder for structured filters (beta-2) replaces the manual link check below
-     * and plugs in at the same spot. The hits are filtered afterwards by their {@code @ResourceRef} component, which also removes
-     * what the backend returns beyond the project (linked records) and what the policy refuses (restricted).
+     * The model names the project and the text, never a query: {@link ExampleSearchQuery} builds the backend query
+     * from them and from the {@link QueryScope} of the policy (the narrowing of the virtual server link, which
+     * {@code StructuredQuery} adds). The project is not a {@code @ResourceRef} on purpose, because a link that narrows
+     * the virtual server to other projects must give an empty search, not an error that tells which projects exist.
+     * The hits are filtered afterwards by their {@code @ResourceRef} component, which also removes what the backend
+     * returns beyond the project (linked records) and what the policy refuses (restricted).
      */
     @Tool(name = "search_records", description = "Searches the titles of the records of one project for a text.")
     @ToolRisk(RiskLevel.READ_ONLY)
@@ -83,11 +81,8 @@ public class ExampleTool {
             throw new InvalidToolArgumentException("text must be 1-" + SEARCH_TEXT_MAX_LENGTH + " characters");
         }
         QueryScope scope = policy.queryScope(ExampleResourceModel.PARENT_TYPE);
-        boolean insideLink = scope.linkIds().map(link -> ExampleResourceModel.withinLink(link, project)).orElse(true);
-        if (!insideLink) {
-            return new ExampleSearchView(List.of());
-        }
-        List<ExampleRecordHit> hits = useCase.searchRecords(project, text);
-        return ExampleSearchView.of(hits);
+        return ExampleSearchQuery.of(scope, project, text)
+                .map(query -> ExampleSearchView.of(useCase.searchRecords(query)))
+                .orElseGet(() -> new ExampleSearchView(List.of()));
     }
 }

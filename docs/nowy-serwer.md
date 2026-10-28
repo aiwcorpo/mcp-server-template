@@ -32,12 +32,13 @@ bo system bierze z `server-id`.
 ### Profile systemów
 
 Template jest serwerem w kształcie Jiry (`Jira::Issue` w `Jira::Project`). Dla pozostałych systemów skrypt podmienia
-trzy pliki plikami z `profiles/<system>/` (ścieżki te same co w template'cie):
+cztery pliki plikami z `profiles/<system>/` (ścieżki te same co w template'cie):
 
 | Plik | Co zmienia |
 | --- | --- |
 | `mcp-core/.../domain/ExampleResourceModel.java` | typ zasobu i kontenera, wzorce identyfikatorów z kontraktów (`contractPattern`), reguła zawężenia linkiem |
 | `mcp-integration/.../ExampleResourceDescription.java` | jak rekord jest opisany polityce: atrybuty wymagane przez schemat Cedar danego systemu (GitLab: `ancestorClassifications`) |
+| `mcp-tools/.../ExampleSearchQuery.java` | zapytanie wyszukiwania: JQL (Jira, template) i CQL (Confluence) przez `StructuredQuery`; reszta sprawdza zakres linku ręcznie |
 | `mcp-app/src/test/.../SampleScope.java` | kształt identyfikatorów w testach, klucz `vsc` linku, grupy odczytu (OpenSearch) |
 
 Profile: `gitlab` (`GitLab::Project` w `GitLab::Group`), `confluence` (`Confluence::Page` w `Confluence::Space`),

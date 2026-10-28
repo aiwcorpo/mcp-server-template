@@ -46,13 +46,15 @@ class ResourcePolicyTest extends ServerTestSupport {
     }
 
     @Test
-    void aRecordWhoseProjectClassificationIsUnknownIsRefusedWhereThePolicyRequiresIt() {
+    void aRecordWhoseProjectClassificationIsUnknownIsNotServedWhereThePolicyRequiresIt() {
         try (McpSyncClient client = clientWithCredential(PAT)) {
             McpSchema.CallToolResult result = call(client, "get_record", Map.of("recordId", StubBackend.UNCLASSIFIED));
 
             if (SampleScope.UNKNOWN_CLASSIFICATION_REFUSED) {
+                // The attribute is required: a resource without it cannot be built, which the contract makes an
+                // internal_error (not a denial); nothing of the record reaches the client.
                 assertThat(result.isError()).isTrue();
-                assertThat(text(result)).contains(NOT_FOUND_OR_DENIED);
+                assertThat(text(result)).contains("\"error\":\"internal_error\"").doesNotContain("Unclassified");
             } else {
                 assertThat(result.isError()).isFalse();
             }

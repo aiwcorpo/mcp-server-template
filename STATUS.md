@@ -2,12 +2,29 @@
 
 M1: osiągnięty (2026-10-27) - template na starterze 3.0.0-alpha-10, `get_record` z poświadczeniem z C3, 401 bez JWT, `new-server.sh --trial demo` (i `new-server.sh jira`) buduje się i przechodzi testy bez zmian ręcznych.
 
-M3: osiągnięty (2026-10-28) - template na starterze 3.0.0-beta-1 (kontrakty 3.1.0): `@ToolTitle`, zamknięte schematy z `contractPattern`, `get_record` z `@ResourceRef` i `ResourceResolver`, `search_records` z `QueryScope` i `ResultFilter`, `policy.*` i `manifest.*` (dev i prod), `GET /mcp-manifest` zgodny z `tools/list`, `DevProfileLoopbackTest` z `assertServerIsGuarded`; `new-server.sh` generuje serwery jira, gitlab, confluence, servicedesk, opensearch i `--trial demo`, każdy buduje się i przechodzi `verify` (59 testów).
+M3: osiągnięty (2026-10-28) - template na starterze 3.0.0-beta-2 (kontrakty 3.1.0; przestawiony z beta-1, patrz niżej): `@ToolTitle`, zamknięte schematy z `contractPattern`, `get_record` z `@ResourceRef` i `ResourceResolver`, `search_records` z `QueryScope` i `ResultFilter`, `policy.*` i `manifest.*` (dev i prod), `GET /mcp-manifest` zgodny z `tools/list`, `DevProfileLoopbackTest` z `assertServerIsGuarded`; `new-server.sh` generuje serwery jira, gitlab, confluence, servicedesk, opensearch i `--trial demo`, każdy buduje się i przechodzi `verify` (62 testy).
 
-Starter: BOM `pl.aiwcorpo.mcp:mcp-platform-bom:3.0.0-beta-1` (kontrakty 3.1.0, Spring Boot 4.1.0, Spring AI
+Starter: BOM `pl.aiwcorpo.mcp:mcp-platform-bom:3.0.0-beta-2` (kontrakty 3.1.0, Spring Boot 4.1.0, Spring AI
 2.0.0, Java 25). Commity: 7f65f8f (M1), c799e54, c1258c4, 83b9f3c (alpha-10), 00f87f4, 80603f4 (alpha-11), następnie M3
-(patrz `git log`). Wyszukiwanie nie przyjmuje od modelu JQL/CQL; po wydaniu startera beta-2 (API budowania zapytań z
-ustrukturyzowanych filtrów) `searchRecords` w `ExampleTool` zostanie przestawione na to API.
+(patrz `git log`). Wyszukiwanie nie przyjmuje od modelu JQL/CQL: `ExampleSearchQuery` buduje zapytanie przez `StructuredQuery`.
+
+## Z beta-1 na beta-2 (2026-10-28)
+
+Wg MIGRATION "Z beta-1 na beta-2": `search_records` buduje JQL przez `scope.jql(...).where(...).build()` (profil confluence:
+`scope.cql`; gitlab, servicedesk i opensearch nie mają budowniczego w starterze i sprawdzają zakres linku ręcznie,
+składnia zapytania w stubie jest przykładowa); port wyszukiwania przyjmuje gotowe zapytanie (`search(query, limit)`);
+resolver ma `fetchAll` (jedno wołanie `?ids=` na wszystkie hity); test jednostkowy `get_record` przez
+`TestResourceContext.open(...).withFetched(...)`; `@ResultWithoutResources` nie jest potrzebne (oba wyniki to rekordy;
+opisane w docs). Zmiana zachowania: rekord z nieznaną klasyfikacją kontenera to `internal_error` (kontrakt), nie
+`not_found_or_denied`; w wyniku listy taki element jest usuwany.
+
+Odstępstwo od polecenia: `TestGateway.start("mcp-example")` NIE zastępuje udawania `mcp-jira`. Wygenerowana paczka
+(`publishGenerated`) ma tylko reguły `call`, bez `read` na zasobach i bez reguł `restricted`, więc każdy odczyt przez
+`@ResourceRef` jest odmową i testy zasobów nie miałyby czego sprawdzać (sprawdziłem: 9 testów pada, a testy odmów
+przechodzą na pusto). `ServerTestSupport.POLICY_SYSTEM` zostaje; opis i ostrzeżenie o manifeście serwera spoza enumu
+`serverId` (ostrzeżenie w `dev`, poza `dev` brak startu) jest w `docs/jak-napisac-narzedzie.md`. Prośba do ws-02:
+`publishGenerated` z regułami `read` i `restricted` dla `Jira::`-podobnych typów (albo ogólnymi) pozwoliłaby użyć
+`mcp-example` w testach. Beta-3 (poprawka walidatora) to to samo podbicie wersji w `pom.xml`.
 
 ## M3: co zrobiono i co serwery muszą zrobić ponad MIGRATION startera
 
@@ -30,7 +47,7 @@ na to trafią:
    `RecordNotFoundException` i `ToolErrorMapping` dla "nie ma" przestają być potrzebne (resolver zwraca pusty
    `Optional`, a starter odpowiada `not_found_or_denied`). Awaria systemu w resolverze to `internal_error` dla 5xx
    (`upstream_unavailable` dla 502-504 i błędów I/O), nie odmowa.
-5. Atrybut klasyfikacji, którego system nie podał, trzeba pominąć, nie wypełniać `""`: pominięcie odrzuca zasób
+5. Atrybut klasyfikacji, którego system nie podał, trzeba pominąć, nie wypełniać `""`: pominięcie odrzuca zasób (beta-2: `internal_error`)
    (Jira `category`, Confluence `labels`, OpenSearch `tags`, GitLab `ancestorClassifications`). Wyjątek: kolejka service
    desku (klasyfikacja opcjonalna).
 6. Konfiguracja: `manifest.internal-url` musi być `https` także w `dev`; `policy.main.public-key-file` w `dev` jest
@@ -105,7 +122,7 @@ cd <workspace>/mcp-server-template
 export JAVA_HOME=/opt/homebrew/Cellar/openjdk@25/25.0.4.1/libexec/openjdk.jdk/Contents/Home
 ./mvnw -B verify                           # raz: kontrakty w ~/.m2 (skrypt czyta z nich SystemId)
 ./new-server.sh jira                       # -> ../mcp-server-jira (nie może istnieć)
-cd ../mcp-server-jira && git init && ./mvnw -B verify   # 59 testów, bez zmian
+cd ../mcp-server-jira && git init && ./mvnw -B verify   # 62 testy, bez zmian
 ```
 
 Zamiany (`example`/`Example`/`EXAMPLE` -> `<system>`/`<System>`/`<SYSTEM>` w treści i ścieżkach) i lista tego,
@@ -227,7 +244,7 @@ BOM alpha-10 -> alpha-11 (MIGRATION-3.0.md, sekcja "Zmiany w 3.0.0-alpha-11"). `
 
 ## Dowód M3 (2026-10-28)
 
-`./mvnw -B clean verify` w template: 59 testów, 0 błędów (mcp-app 55: `GetRecordToolTest` 17, `SearchRecordsToolTest` 14,
+`./mvnw -B clean verify` w template: 62 testy, 0 błędów (mcp-app 55: `GetRecordToolTest` 17, `SearchRecordsToolTest` 14,
 `ResourcePolicyTest` 7, `ManifestTest` 6, `ProductionConfigurationTest` 5, `GatewayOnlyAccessTest` 4,
 `DevProfileLoopbackTest` 1 + `contractSystemIsKnown` w każdej klasie dziedziczącej; mcp-application 2, mcp-tools 2).
 `tests/new-server-test.sh --build`: wszystkie kontrole, w tym `verify` na wygenerowanych serwerach jira, gitlab,

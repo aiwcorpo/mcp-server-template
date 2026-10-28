@@ -10,8 +10,8 @@ public interface ExampleUseCase {
     int MAX_HITS = 50;
 
     /**
-     * Records of one project whose title matches {@code text}, at most {@link #MAX_HITS}. The caller has already
-     * limited {@code project} to what the policy allows; the backend limits the rest to the user's own rights.
+     * Rows of a query the tool built from the scope of the policy and the values of the model, at most
+     * {@link #MAX_HITS}. The backend limits the rest to the user's own rights.
      */
-    List<ExampleRecordHit> searchRecords(String project, String text);
+    List<ExampleRecordHit> searchRecords(String query);
 }

@@ -15,8 +15,8 @@ public class ExampleService implements ExampleUseCase {
     }
 
     @Override
-    public List<ExampleRecordHit> searchRecords(String project, String text) {
-        List<ExampleRecordHit> hits = resource.search(project, text, MAX_HITS);
+    public List<ExampleRecordHit> searchRecords(String query) {
+        List<ExampleRecordHit> hits = resource.search(query, MAX_HITS);
         return hits.size() > MAX_HITS ? hits.subList(0, MAX_HITS) : hits;
     }
 }

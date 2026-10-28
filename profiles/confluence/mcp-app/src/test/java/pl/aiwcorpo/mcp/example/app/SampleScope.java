@@ -26,6 +26,9 @@ final class SampleScope {
     /** Searching this project makes the backend fail. */
     static final String FAIL_PROJECT = "FAIL";
 
+    /** Whether the server hands the narrowing of a link to the system inside the query (JQL, CQL) instead of checking it itself. */
+    static final boolean QUERY_CARRIES_LINK = true;
+
     static final String OPEN_PROJECT = "ABC";
     static final String OTHER_PROJECT = "DEF";
     static final String RESTRICTED_PROJECT = "HR";

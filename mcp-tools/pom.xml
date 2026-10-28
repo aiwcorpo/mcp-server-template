@@ -25,6 +25,11 @@
             <artifactId>mcp-platform-starter</artifactId>
         </dependency>
         <dependency>
+            <groupId>pl.aiwcorpo.mcp</groupId>
+            <artifactId>mcp-platform-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>

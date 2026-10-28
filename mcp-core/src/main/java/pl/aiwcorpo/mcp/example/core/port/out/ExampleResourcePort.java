@@ -1,6 +1,8 @@
 package pl.aiwcorpo.mcp.example.core.port.out;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import pl.aiwcorpo.mcp.example.core.domain.ExampleRecord;
 import pl.aiwcorpo.mcp.example.core.domain.ExampleRecordHit;
@@ -11,6 +13,12 @@ public interface ExampleResourcePort {
     /** Empty when the backend does not show the record to the caller, whether it exists or not. */
     Optional<ExampleRecord> findById(String recordId);
 
-    /** Matches of {@code text} in {@code project}, at most {@code limit}; the backend may add linked records of other projects. */
-    List<ExampleRecordHit> search(String project, String text, int limit);
+    /** The records among {@code recordIds} the backend shows to the caller, by id; one call for the whole set. */
+    Map<String, ExampleRecord> findAllById(Collection<String> recordIds);
+
+    /**
+     * Runs a query the server built (never one from the model), at most {@code limit} rows; the backend may add linked
+     * records of other projects.
+     */
+    List<ExampleRecordHit> search(String query, int limit);
 }

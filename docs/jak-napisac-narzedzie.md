@@ -42,13 +42,15 @@ da się opisać, kończą wywołanie tym samym `not_found_or_denied`.
 Resolver (`ExampleRecordResolver`) ma trzy metody:
 
 - `fetch(id)`: woła system poświadczeniem wywołującego. Pusty `Optional` dla 404 i 403, **wyjątek** dla awarii
-  systemu (klient dostaje `upstream_unavailable`, nie odmowę).
+  systemu (klient dostaje `upstream_unavailable` albo `internal_error`, nie odmowę). `fetchAll(ids)`: jedno wołanie
+  zbiorcze dla wszystkich hitów wyniku (domyślnie pętla po `fetch`; w template'cie `?ids=a,b`, w Jirze `key in (...)`).
 - `describe(obiekt)`: typ, kanoniczny id, rodzic i atrybuty polityki (`ExampleResourceDescription`). Id i rodzic z
   odpowiedzi systemu, nigdy z argumentu: zgłoszenie `ABC-123` przeniesione do `HR` ma projekt `HR`, a jego klasyfikacja
   `restricted` zamyka dostęp mimo argumentu, który wygląda na `ABC`.
 - Atrybuty wymagane przez schemat polityki: `Jira::Project.category` (`""` gdy brak), `Confluence::Space.labels`,
   `OpenSearch::Index.tags`; opcjonalne `classification` dla kolejki service desku i dla GitLaba. Atrybutu, którego
-  system nie podał, **nie wypełniaj domyślną wartością**: pominięty atrybut sprawia, że zasób jest odrzucany.
+  system nie podał, **nie wypełniaj domyślną wartością**: pominięty atrybut sprawia, że zasób nie jest budowany. Kontrakt
+  każe to traktować jako `internal_error` (nie `not_found_or_denied`), a element wyniku w takim stanie jest usuwany.
 
 Metoda narzędzia czyta rekord, który pobrał resolver (`ResourceContext.current().orElseThrow().fetched(typ, id,
 Klasa.class)`), bez drugiego pytania systemu. Wszystkie wartości argumentu będącego listą są oceniane, a pierwsza
@@ -79,18 +81,44 @@ template'u (`ExampleResourceDescription`); wektory kontraktów: `server-gitlab-*
 - Model podaje wartości (zakres: projekt, przestrzeń, grupa, prefiks indeksu; tekst; ograniczone filtry), serwer
   buduje zapytanie. Zakres jest argumentem obowiązkowym i nie ma globalnego wyszukiwania.
 - `policy.queryScope(typ)` (`ResourcePolicy` wstrzyknięte w konstruktorze) daje zawężenie z linku wirtualnego
-  serwera (`linkIds()`) i zakresy z grup (`grantedIds()`, `grantsNothing()`). Gdzie system sam stosuje prawa
+  serwera (`linkIds()`) i zakresy z grup (`grantedIds()`, `grantsNothing()`). JQL i CQL buduje `StructuredQuery`: pola
+  z białej listy autora, operatory z zamkniętego zbioru, tylko `AND`, wartości zawsze w cudzysłowach i escapowane:
+
+  ```java
+  String jql = scope.jql(Set.of("project", "text"))             // pola, po których wolno filtrować
+          .where("project", Operator.EQUALS, project)            // null albo pusta wartość = filtr pominięty
+          .where("text", Operator.CONTAINS, text)                // tekst literalny, znaki specjalne escapowane
+          .build();                                              // project in ("ABC") AND project = "ABC" AND text ~ "..."
+  ```
+
+  Nie przyjmuj od modelu tekstu JQL ani CQL (`restrictJql` nie istnieje od beta-2): jeśli produkt wymaga języka zapytań
+  od modelu, nie przechodzi przez starter. OpenSearch: `scope.nothingToQuery()` i `scope.opensearchIndexExpression()`
+  plus `QueryScope.OPENSEARCH_SEARCH_PARAMETERS`. Gdzie system sam stosuje prawa
   użytkownika (Jira, Confluence, GitLab z jego tokenem), wystarcza link; gdzie nie (OpenSearch, konto serwisowe),
   zapytanie ogranicza się do `grantedIds()`, a **puste `grantsNothing()` oznacza: nie wykonuj zapytania**. Wyszukiwanie
   poza linkiem to pusty wynik, nie błąd: błąd mówiłby, jakie zakresy istnieją. Wzór: `ExampleTool.searchRecords`.
-  Wartości od modelu wchodzą do zapytania wyłącznie jako zmienne szablonu URI albo cytowane identyfikatory
-  (`QueryScope.quote`), nigdy sklejane. Starter beta-2 dostanie API budowania zapytań z ustrukturyzowanych filtrów;
-  miejsce na nie to ten sam fragment `searchRecords`.
+  Wartości od modelu wchodzą do zapytania wyłącznie przez `StructuredQuery`, cytowane identyfikatory
+  (`QueryScope.quote`) albo zmienne szablonu URI, nigdy sklejane. Miejsce w kodzie: `ExampleSearchQuery`.
 - `ResultFilter`: rekord wyniku z komponentem `@ResourceRef` (`ExampleSearchView.Hit.id`) jest sprawdzany po
   wykonaniu narzędzia, a elementy listy, których polityka nie dopuszcza, znikają z wyniku. Usuwa to rekordy powiązane
   w wyszukiwaniu z innych projektów (link zawężony do `ABC` nie pokazuje zgłoszenia z `DEF`), zastrzeżone i
-  przeniesione. Liczniki z systemu (`total`) nie są poprawiane po filtrowaniu: nie zwracaj ich. Wynik innego kształtu
+  przeniesione. Liczniki z systemu (`total`) nie są poprawiane po filtrowaniu: nie zwracaj ich. Lista dłuższa niż `tools.max-filtered-elements` (200) kończy wywołanie `internal_error`: zwracaj strony. Wynik bez zasobów, którego platforma nie umie obejrzeć (`Map`, `JsonNode`, klasa niebędąca rekordem), wymaga `@ResultWithoutResources`; rekord z `@ResourceRef` nie może mieć adnotacji Jacksona na komponentach. `@ResourceRef` na komponencie rekordu będącego argumentem zatrzymuje start: identyfikator zasobu to osobny parametr. Wynik innego kształtu
   filtruje `policy.retainAllowedById(typ, elementy, Element::id)` albo `retainAllowed(...)`.
+
+## Test jednostkowy narzędzia z zasobem
+
+Metoda, która czyta `ResourceContext.required().fetched(...)`, rzuca poza wywołaniem platformy. W teście jednostkowym otwórz
+kontekst: `TestResourceContext.open("get_record", Map.of("recordId", "ABC-1")).withFetched(typ, "ABC-1", rekord, null)` (w
+`try`, `mcp-platform-test` w zakresie `test`). Politykę (odmowy, linki, grupy) sprawdza się przez klienta MCP z `TestGateway`
+(`ResourcePolicyTest`), nie przez bezpośrednie wywołanie metody.
+
+## Serwer przykładowy i testy
+
+`TestGateway.start("mcp-example")` publikuje paczkę z regułami `call` dla grup `mcp-example-read|write|destructive`, ale bez
+reguł `read` na zasobach i bez reguł `restricted`, więc narzędzia z `@ResourceRef` zawsze dostałyby odmowę. Testy template'u
+udają dlatego `mcp-jira` (`ServerTestSupport.POLICY_SYSTEM`). Serwer spoza pięciu systemów kontraktów ma też manifest
+odrzucany przez enum `serverId` (`server-manifest.schema.json`): w `dev` to ostrzeżenie `event=manifest_rejected_by_rules`, poza
+`dev` taki serwer nie wstanie. Wygenerowany `--trial` działa więc tylko w `dev`.
 
 ## Narzędzie `DESTRUCTIVE`
 

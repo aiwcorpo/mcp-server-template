@@ -3,7 +3,10 @@ package pl.aiwcorpo.mcp.example.integration;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
@@ -96,11 +99,31 @@ public class ExampleResourceAdapter implements ExampleResourcePort {
     }
 
     @Override
-    public List<ExampleRecordHit> search(String project, String text, int limit) {
+    public Map<String, ExampleRecord> findAllById(Collection<String> recordIds) {
         BackendCredential credential = CredentialContext.require(system);
-        // Values go through URI template variables, which encode them: a text with "&project=HR" stays one value.
+        // Ids were checked against the pattern of their type by the starter; template variables encode them anyway.
         SearchResponse response = call(() -> client.get()
-                .uri("/api/records?project={project}&q={text}&limit={limit}", project, text, limit)
+                .uri("/api/records?ids={ids}", String.join(",", recordIds))
+                .headers(credential::applyTo)
+                .retrieve()
+                .body(SearchResponse.class));
+        if (response == null || response.records() == null) {
+            throw new BackendResponseException("empty body");
+        }
+        Map<String, ExampleRecord> found = new LinkedHashMap<>();
+        for (RecordResponse record : response.records()) {
+            ExampleRecord domain = record.toDomain();
+            found.put(domain.id(), domain);
+        }
+        return found;
+    }
+
+    @Override
+    public List<ExampleRecordHit> search(String query, int limit) {
+        BackendCredential credential = CredentialContext.require(system);
+        // The query is a value of a template variable, so it is encoded as one parameter whatever it contains.
+        SearchResponse response = call(() -> client.get()
+                .uri("/api/records?query={query}&limit={limit}", query, limit)
                 .headers(credential::applyTo)
                 .retrieve()
                 .body(SearchResponse.class));

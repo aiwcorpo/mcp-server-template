@@ -15,6 +15,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * The backend system in tests: a real HTTP server on loopback, so the adapter runs with its real client,
@@ -71,6 +73,7 @@ final class StubBackend {
     private final List<String> authorizations = new CopyOnWriteArrayList<>();
     private final List<String> elsewhereHits = new CopyOnWriteArrayList<>();
     private final List<String> searches = new CopyOnWriteArrayList<>();
+    private final List<String> batches = new CopyOnWriteArrayList<>();
 
     private StubBackend(HttpServer server, HttpServer elsewhere) {
         this.server = server;
@@ -112,40 +115,87 @@ final class StubBackend {
         return List.copyOf(elsewhereHits);
     }
 
-    /** Raw (still encoded) query strings of the searches received so far. */
+    /** The queries (decoded) of the searches received so far. */
     List<String> searches() {
         return List.copyOf(searches);
+    }
+
+    /** The id lists of the batch lookups received so far. */
+    List<String> batches() {
+        return List.copyOf(batches);
     }
 
     void reset() {
         authorizations.clear();
         elsewhereHits.clear();
         searches.clear();
+        batches.clear();
     }
 
+    private static final Pattern REQUESTED = Pattern.compile("(?:project|space) = \"((?:[^\"\\\\]|\\\\.)*)\"");
+    private static final Pattern LINKED = Pattern.compile("(?:project|space) in \\(([^)]*)\\)");
+    private static final Pattern TEXT = Pattern.compile("(?:text|title) ~ \"((?:[^\"\\\\]|\\\\.)*)\"");
+
+    /**
+     * {@code ?ids=a,b}: the records among them that the stub keeps in one place (a batch for the resolver). Otherwise
+     * {@code ?query=}: the query the server built, read the way Jira and Confluence read the part that matters here: the
+     * requested project or space, the narrowing of a link ({@code project in ("ABC")}) and the text of the title.
+     */
     private void search(HttpExchange exchange) throws IOException {
         String authorization = exchange.getRequestHeaders().getFirst("Authorization");
         authorizations.add(String.valueOf(authorization));
-        String rawQuery = String.valueOf(exchange.getRequestURI().getRawQuery());
-        searches.add(rawQuery);
         if (EXPIRED_CREDENTIAL.equals(authorization)) {
             respond(exchange, 401, "{\"message\":\"token expired\"}");
             return;
         }
         Map<String, List<String>> parameters = parameters(exchange.getRequestURI().getRawQuery());
-        String project = parameters.getOrDefault("project", List.of("")).getFirst();
-        String text = parameters.getOrDefault("q", List.of("")).getFirst().toLowerCase(Locale.ROOT);
+        if (parameters.containsKey("ids")) {
+            batches.add(parameters.get("ids").getFirst());
+            List<String> found = new ArrayList<>();
+            for (String id : parameters.get("ids").getFirst().split(",")) {
+                String json = batchRecord(id);
+                if (json != null) {
+                    found.add(json);
+                }
+            }
+            respond(exchange, 200, "{\"records\":[" + String.join(",", found) + "]}");
+            return;
+        }
+        String query = parameters.getOrDefault("query", List.of("")).getFirst();
+        searches.add(query);
+        Matcher requested = REQUESTED.matcher(query);
+        String project = requested.find() ? requested.group(1) : "";
+        Matcher text = TEXT.matcher(query);
+        String needle = (text.find() ? text.group(1).replace("\\\"", "\"") : "").toLowerCase(Locale.ROOT);
         if (SampleScope.FAIL_PROJECT.equals(project)) {
             respond(exchange, 500, "{\"error\":\"boom\",\"seen\":\"" + authorization + "\"}");
             return;
         }
+        Matcher linked = LINKED.matcher(query);
+        if (linked.find() && !List.of(linked.group(1).replace("\"", "").split("\\s*,\\s*")).contains(project)) {
+            respond(exchange, 200, "{\"records\":[]}");
+            return;
+        }
         List<String> hits = new ArrayList<>();
         for (String[] hit : SEARCH_ROWS) {
-            if (hit[0].equals(project) && hit[2].toLowerCase(Locale.ROOT).contains(text)) {
+            if (hit[0].equals(project) && hit[2].toLowerCase(Locale.ROOT).contains(needle)) {
                 hits.add("{\"id\":\"" + hit[1] + "\",\"title\":\"" + hit[2] + "\"}");
             }
         }
         respond(exchange, 200, "{\"records\":[" + String.join(",", hits) + "],\"total\":" + hits.size() + "}");
+    }
+
+    private static String batchRecord(String id) {
+        if (OPEN_1.equals(id)) {
+            return record(OPEN_1, SampleScope.OPEN_PROJECT, "\"\"", "Quarterly report");
+        } else if (OPEN_2.equals(id)) {
+            return record(OPEN_2, SampleScope.OPEN_PROJECT, "\"\"", "Report archive");
+        } else if (OTHER_7.equals(id)) {
+            return record(OTHER_7, SampleScope.OTHER_PROJECT, "\"\"", "Report of the other team");
+        } else if (RESTRICTED_5.equals(id)) {
+            return record(RESTRICTED_5, SampleScope.RESTRICTED_PROJECT, "\"Restricted\"", "Salary report");
+        }
+        return null;
     }
 
     /** Searched project, id, title. Project ABC links to a record of DEF, to a restricted one and to a moved one. */

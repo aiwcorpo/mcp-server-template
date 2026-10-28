@@ -11,20 +11,19 @@ import pl.aiwcorpo.mcp.example.core.port.in.ExampleUseCase;
 class ExampleServiceTest {
 
     @Test
-    void asksTheBackendForAtMostTheLimitAndPassesProjectAndText() {
-        String[] seen = new String[3];
+    void passesTheQueryAndTheLimitToTheBackend() {
+        String[] seen = new String[2];
         ExampleService service = new ExampleService(new StubPort() {
             @Override
-            public List<ExampleRecordHit> search(String project, String text, int limit) {
-                seen[0] = project;
-                seen[1] = text;
-                seen[2] = String.valueOf(limit);
+            public List<ExampleRecordHit> search(String query, int limit) {
+                seen[0] = query;
+                seen[1] = String.valueOf(limit);
                 return List.of(new ExampleRecordHit("ABC-1", "First"));
             }
         });
 
-        assertThat(service.searchRecords("ABC", "first")).containsExactly(new ExampleRecordHit("ABC-1", "First"));
-        assertThat(seen).containsExactly("ABC", "first", String.valueOf(ExampleUseCase.MAX_HITS));
+        assertThat(service.searchRecords("q")).containsExactly(new ExampleRecordHit("ABC-1", "First"));
+        assertThat(seen).containsExactly("q", String.valueOf(ExampleUseCase.MAX_HITS));
     }
 
     @Test
@@ -33,15 +32,20 @@ class ExampleServiceTest {
                 .mapToObj(i -> new ExampleRecordHit("ABC-" + i, "t")).toList();
         ExampleService service = new ExampleService(new StubPort() {
             @Override
-            public List<ExampleRecordHit> search(String project, String text, int limit) {
+            public List<ExampleRecordHit> search(String query, int limit) {
                 return many;
             }
         });
 
-        assertThat(service.searchRecords("ABC", "t")).hasSize(ExampleUseCase.MAX_HITS);
+        assertThat(service.searchRecords("q")).hasSize(ExampleUseCase.MAX_HITS);
     }
 
     private abstract static class StubPort implements pl.aiwcorpo.mcp.example.core.port.out.ExampleResourcePort {
+
+        @Override
+        public java.util.Map<String, pl.aiwcorpo.mcp.example.core.domain.ExampleRecord> findAllById(java.util.Collection<String> recordIds) {
+            throw new UnsupportedOperationException();
+        }
 
         @Override
         public java.util.Optional<pl.aiwcorpo.mcp.example.core.domain.ExampleRecord> findById(String recordId) {

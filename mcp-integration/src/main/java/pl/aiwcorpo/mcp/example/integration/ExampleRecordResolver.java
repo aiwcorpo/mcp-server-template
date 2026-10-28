@@ -1,5 +1,8 @@
 package pl.aiwcorpo.mcp.example.integration;
 
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
 import pl.aiwcorpo.mcp.cedar.entities.ResolvedResource;
@@ -32,6 +35,25 @@ public class ExampleRecordResolver implements ResourceResolver<ExampleRecord> {
     @Override
     public Optional<ExampleRecord> fetch(String recordId) {
         return resource.findById(recordId);
+    }
+
+    /**
+     * One backend call for all the hits of a search (the starter resolves every element of a result). A record the
+     * backend answers under another id than the one asked (a moved record) is looked up on its own.
+     */
+    @Override
+    public Map<String, ExampleRecord> fetchAll(Collection<String> recordIds) {
+        Map<String, ExampleRecord> byId = resource.findAllById(recordIds);
+        Map<String, ExampleRecord> fetched = new LinkedHashMap<>();
+        for (String id : recordIds) {
+            ExampleRecord record = byId.get(id);
+            if (record != null) {
+                fetched.put(id, record);
+            } else {
+                resource.findById(id).ifPresent(single -> fetched.put(id, single));
+            }
+        }
+        return fetched;
     }
 
     @Override

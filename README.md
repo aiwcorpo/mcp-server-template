@@ -1,6 +1,6 @@
 # mcp-example: serwer MCP platformy
 
-Serwer MCP dla systemu `example`, zbudowany na `mcp-platform-starter` 3.0.0-beta-1 (Java 25, Spring Boot
+Serwer MCP dla systemu `example`, zbudowany na `mcp-platform-starter` 3.0.0-beta-2 (Java 25, Spring Boot
 4.1.0, Spring AI 2.0.0, kontrakty `mcp-contracts` 3.1.0). Stoi wyłącznie za gateway'em platformy: przyjmuje
 ruch tylko po mTLS z wewnętrznym JWT gateway'a (C2), a do systemu docelowego woła z poświadczeniem
 użytkownika, które gateway dołącza do każdego żądania (C3). Bez poprawnego JWT odpowiada 401, nie ma trybu
@@ -27,8 +27,8 @@ JWKS z kluczy testowych kontraktów i podpisuje wewnętrzne JWT, a `StubBackend`
 | --- | --- | --- |
 | `mcp-core` | domena i porty, czysta Java | `ExampleRecord`, `ExampleRecordHit`, `ExampleResourceModel` (typy zasobów polityki, wzorce identyfikatorów z kontraktów), port wejściowy `ExampleUseCase`, port wyjściowy `ExampleResourcePort` |
 | `mcp-application` | przypadki użycia (bez Springa) | `ExampleService` |
-| `mcp-integration` | adaptery wyjściowe do systemu | `ExampleResourceAdapter` (REST, poświadczenie z C3, timeouty, bez przekierowań, `https` poza `dev`), `BoundedBodyInterceptor` (limit rozmiaru odpowiedzi), `BackendResponseException` (odpowiedź bez treści w komunikacie), `ExampleBackendProperties`, `ExampleRecordResolver` (`ResourceResolver`: rekord z systemu poświadczeniem wywołującego), `ExampleResourceDescription` (rekord jako zasób polityki: id, rodzic i klasyfikacja z odpowiedzi systemu) |
-| `mcp-tools` | narzędzia MCP, powierzchnia publiczna | `ExampleTool` (`get_record`, `search_records`), `ExampleRecordView` i `ExampleSearchView` (wyniki z `UntrustedText`, hit z `@ResourceRef`); `@ArgumentLimits` i `SchemaLimitedToolCallbacks` pochodzą ze startera (limity argumentów w `inputSchema`) |
+| `mcp-integration` | adaptery wyjściowe do systemu | `ExampleResourceAdapter` (REST, poświadczenie z C3, timeouty, bez przekierowań, `https` poza `dev`), `BoundedBodyInterceptor` (limit rozmiaru odpowiedzi), `BackendResponseException` (odpowiedź bez treści w komunikacie), `ExampleBackendProperties`, `ExampleRecordResolver` (`ResourceResolver`: rekord z systemu poświadczeniem wywołującego), `ExampleRecordResolver` także z `fetchAll` (jedno wywołanie na hity wyszukiwania), `ExampleResourceDescription` (rekord jako zasób polityki: id, rodzic i klasyfikacja z odpowiedzi systemu) |
+| `mcp-tools` | narzędzia MCP, powierzchnia publiczna | `ExampleTool` (`get_record`, `search_records`), `ExampleSearchQuery` (zapytanie do systemu budowane przez serwer), `ExampleRecordView` i `ExampleSearchView` (wyniki z `UntrustedText`, hit z `@ResourceRef`); `@ArgumentLimits` i `SchemaLimitedToolCallbacks` pochodzą ze startera (limity argumentów w `inputSchema`) |
 | `mcp-app` | bootstrap, wiring, jedyny jar, testy end-to-end | `McpServerApplication`, `McpToolsConfiguration` (lista narzędzi), `ApplicationWiringConfiguration` |
 
 Zależności idą do środka: `mcp-tools` -> `mcp-application` -> `mcp-core` <- `mcp-integration`; `mcp-app` składa
@@ -40,15 +40,17 @@ systemu, nie z argumentu narzędzia.
 | Narzędzie | Tytuł | Ryzyko | Akcja | Uprawnienie (C9) | Argumenty | Wynik i błędy |
 | --- | --- | --- | --- | --- | --- | --- |
 | `get_record` | Pobierz rekord | `READ_ONLY` | `read` | `mcp-example-read` | `recordId` z `@ResourceRef`, wzorzec i długość z kontraktu (`ExampleResourceModel`) | `{id, project, title, status}`; `not_found_or_denied` (brak rekordu, 404 i 403 z systemu, projekt `restricted`, rekord przeniesiony do takiego projektu, klasyfikacja nieznana), `access_denied` (brak grupy), `credential_required`, `invalid_argument`, `upstream_unavailable`, `internal_error` |
-| `search_records` | Szukaj rekordów | `READ_ONLY` | `read` | `mcp-example-read` | `project` (zakres, wzorzec z kontraktu), `text` (1-200 znaków); zapytanie do systemu buduje serwer | `{hits: [{id, title}]}`, najwyżej 50; link wirtualnego serwera zawęża zakres (`QueryScope`), hity są filtrowane polityką (`ResultFilter`) |
+| `search_records` | Szukaj rekordów | `READ_ONLY` | `read` | `mcp-example-read` | `project` (zakres, wzorzec z kontraktu), `text` (1-200 znaków); zapytanie do systemu buduje serwer | `{hits: [{id, title}]}`, najwyżej 50; zapytanie (JQL) buduje `StructuredQuery` z zakresu linku wirtualnego serwera i wartości od modelu, hity są filtrowane polityką (`ResultFilter`) |
 
 Nazwa widziana przez klienta to `example__get_record` (prefiks dokłada gateway, C5). Tytuły są częścią definicji
 narzędzia, więc ich zmiana zmienia `definitionHash`.
 
-Wybór zakresu: model podaje wartości (projekt, tekst), nigdy fragmentu języka zapytań. `QueryScope` daje
-zawężenie z linku (`linkIds()`), a gdzie system nie stosuje praw użytkownika, także zakresy z grup
-(`grantedIds()`, `grantsNothing()` = nie pytaj systemu). API budowania zapytań ze startera beta-2 zastąpi ręczne
-sprawdzenie zakresu w `search_records`.
+Wybór zakresu: model podaje wartości (projekt, tekst), nigdy fragmentu języka zapytań. `ExampleSearchQuery` składa
+zapytanie przez `scope.jql(pola).where(pole, operator, wartość).build()` (Confluence: `scope.cql`): starter dokleja
+zawężenie z linku (`project in (...)`) i cytuje każdą wartość, więc cudzysłów ani nawias w tekście nie zmienia
+zapytania. Systemy bez budowniczego w starterze (GitLab, service desk, OpenSearch) sprawdzają zakres ręcznie
+(`linkIds()`, `nothingToQuery()`), a gdzie system nie stosuje praw użytkownika, ograniczają zapytanie do
+`grantedIds()` (`grantsNothing()` = nie pytaj systemu).
 
 ## Jak przechodzi wywołanie
 
@@ -59,8 +61,8 @@ gateway --mTLS (CN mcp-gateway) + JWT C2 (aud mcp-example, tool get_record) + X-
      ExampleRecordResolver -> ExampleResourceAdapter: CredentialContext + credential::applyTo
      -> GET {MCP_EXAMPLE_URL}/api/records/{id}; opis zasobu (projekt i klasyfikacja Z SYSTEMU) -> Cedar `read`
   -> ExampleTool.getRecord: rekord, który pobrał resolver (bez drugiego wywołania)
-  -> search_records: zakres z QueryScope -> ExampleService -> adapter -> GET /api/records?project=..&q=..
-     -> wynik filtrowany po @ResourceRef hitów
+  -> search_records: ExampleSearchQuery (QueryScope + StructuredQuery) -> ExampleService -> adapter
+     -> GET /api/records?query=..; hity rozwiązane jednym fetchAll, wynik filtrowany po @ResourceRef hitów
 ```
 
 Adapter nie podąża za przekierowaniami (nagłówek z poświadczeniem nie może pójść pod inny adres), czyta najwyżej
@@ -179,18 +181,18 @@ handshake'u. Pełne wywołanie narzędzia wymaga gateway'a z hosta (`mcp-gateway
 | Klasa | Co sprawdza |
 | --- | --- |
 | `GetRecordToolTest` | poświadczenie z C3 dociera do systemu, jedno wywołanie na rekord; `readOnlyHint`, tytuł, zamknięty schemat, `maxLength` i `pattern`; brak poświadczenia i 401 systemu -> `credential_required`; 404 i 403 -> ten sam `not_found_or_denied`; zły `recordId` nie dociera do systemu i nie wraca w błędzie; nieczytelna odpowiedź 200 i rekord bez `id` -> `internal_error` bez treści w logu; przekierowanie nie jest wykonywane; timeout -> `upstream_unavailable`; za duża odpowiedź ucięta; poświadczenie nie trafia do wyniku ani logu |
-| `ResourcePolicyTest` | rekord w projekcie `restricted`, rekord przeniesiony do takiego projektu i rekord z nieznaną klasyfikacją dają `not_found_or_denied` identyczne jak nieistniejący; `access_denied` bez grupy i bez wywołania systemu; link zawężony do innego projektu ukrywa rekord; awaria systemu to nie odmowa |
-| `SearchRecordsToolTest` | wyniki bez rekordów zastrzeżonych i przeniesionych; link zawężony do jednego projektu nie zwraca rekordów spoza niego; wyszukiwanie poza linkiem jest puste i nie woła systemu; wartości od modelu nie zmieniają struktury zapytania; `credential_required`, `access_denied`, błędne argumenty |
+| `ResourcePolicyTest` | rekord w projekcie `restricted` i rekord przeniesiony do takiego projektu dają `not_found_or_denied` identyczne jak nieistniejący; rekord z nieznaną klasyfikacją nie jest wydawany (`internal_error`, kontrakt); `access_denied` bez grupy i bez wywołania systemu; link zawężony do innego projektu ukrywa rekord; awaria systemu to nie odmowa |
+| `SearchRecordsToolTest` | wyniki bez rekordów zastrzeżonych i przeniesionych; link zawężony do jednego projektu nie zwraca rekordów spoza niego i jest w zapytaniu; wyszukiwanie poza linkiem jest puste; cudzysłów w tekście od modelu zostaje literałem; hity rozwiązane jednym wywołaniem; `credential_required`, `access_denied`, błędne argumenty |
 | `ManifestTest` | manifest przechodzi reguły gateway'a, definicje równe `tools/list` (zgodny `definitionHash`), tytuły i zamknięte schematy, `resourceRefs`, 401 bez JWT |
 | `GatewayOnlyAccessTest` | bez JWT 401 (`tools/call`, `ping`, `initialize`), JWT dla innego serwera, innego narzędzia, wariant serwisowy i przeterminowany -> 401; bez JWT tylko health; system zgodny z `SystemId` (albo jawnie próbny) |
 | `ProductionConfigurationTest` | konfiguracja bazowa: `client-auth: need`, paczka polityk i manifest wymagane, bez kluczy testowych; klucze testowe i repozytorium polityk dev tylko w `application-dev.yml`; backend `http` poza `dev` odrzucony (chyba że jawnie dopuszczony); `dev` na 127.0.0.1 |
 | `DevProfileLoopbackTest` | reguła adresu `dev` (`assertDevProfileLoopbackRule`) i obecność guardów w kontekście serwera (`assertServerIsGuarded`) |
-| `ExampleToolTest` | walidacja tekstu wyszukiwania (stały komunikat), limity i zamknięte schematy obu narzędzi |
+| `ExampleToolTest` | walidacja tekstu wyszukiwania (stały komunikat), limity i zamknięte schematy obu narzędzi, `get_record` z kontekstem z `TestResourceContext` |
 | `ExampleServiceTest` | limit wyników wyszukiwania bez Springa |
 
 Nowe narzędzie dostaje test w tym samym stylu: klasa dziedziczy po `ServerTestSupport`, odpowiedź systemu
 dopisuje się w `StubBackend`. Polityka w testach to przykładowa paczka kontraktów, która zna tylko pięć systemów z
-`SystemId`; serwer próbny (`--trial`) działa więc w testach pod tożsamością `mcp-jira` (`ServerTestSupport.POLICY_SYSTEM`).
+`SystemId`; serwer próbny (`--trial`) działa więc w testach pod tożsamością `mcp-jira` (`ServerTestSupport.POLICY_SYSTEM`). `TestGateway.start("mcp-example")` generuje paczkę tylko z regułami `call`, bez `read` i bez reguł `restricted`, więc testy zasobów nie miałyby czego sprawdzać (każdy odczyt byłby odmową).
 Identyfikatory przykładowych rekordów muszą pasować do wzorca typu zasobu z kontraktów (starter sprawdza go przed
 resolverem), dlatego `SampleScope` jest osobny dla każdego systemu.
 

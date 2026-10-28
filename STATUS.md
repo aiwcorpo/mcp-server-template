@@ -2,7 +2,7 @@
 
 M1: osiągnięty (2026-10-27) - template na starterze 3.0.0-alpha-10, `get_record` z poświadczeniem z C3, 401 bez JWT, `new-server.sh --trial demo` (i `new-server.sh jira`) buduje się i przechodzi testy bez zmian ręcznych.
 
-Starter: BOM `pl.aiwcorpo.mcp:mcp-platform-bom:3.0.0-alpha-10` (kontrakty 2.1.1, Spring Boot 4.1.0, Spring AI
+Starter: BOM `pl.aiwcorpo.mcp:mcp-platform-bom:3.0.0-alpha-11` (kontrakty 2.1.1, Spring Boot 4.1.0, Spring AI
 2.0.0, Java 25). M2 nie jest zaczęty. Commity: 7f65f8f (M1), c799e54 (uruchomienie lokalne, alpha-4), c1258c4
 (poprawki po recenzji M1, alpha-5), następny (alpha-10, patrz niżej).
 
@@ -78,7 +78,7 @@ własny `STATUS.md`. `@ResourceRef`, `QueryScope`, `ResultFilter`, manifest C6 d
 Zrobione w template'cie przy przejściu na 3.0.0-alpha-10 (z alpha-5); serwery jira i confluence mają to samo
 przeniesione (patrz ich STATUS.md). Serwer wygenerowany z tego commitu nie wymaga niczego z listy.
 
-1. `pom.xml`: `<mcp-platform.version>3.0.0-alpha-10</mcp-platform.version>`.
+1. `pom.xml`: `<mcp-platform.version>3.0.0-alpha-11</mcp-platform.version>`.
 2. `mcp-tools`: usunięte lokalne `ArgumentLimits.java` i `SchemaLimitedToolCallbacks.java`; importy
    `pl.aiwcorpo.mcp.platform.input.ArgumentLimits` i `...input.SchemaLimitedToolCallbacks` (też w
    `McpToolsConfiguration` i testach). Adnotacja ze startera ma `minLength`, `maxLength`, `pattern`,
@@ -179,3 +179,7 @@ Brak.
 | T3-L1 brak testu rekordu z pustymi polami opcjonalnymi; `project` wymagane w wyniku | poprawione: `project` jest `@Nullable` (adapter wymaga tylko `id`), stub ma rekord `ABC-PARTIAL` bez `project` i `status` | `GetRecordToolTest.aRecordWithoutTheOptionalFieldsIsAnOkResultWithNulls` |
 | T3-L2 STATUS nieaktualny | poprawione: liczby testów (28 w template i w wygenerowanym serwerze), L5 i L9 zamknięte | |
 | A10-M1 `DevProfileLoopbackTest` | bez zmian, rozwiąże starter alpha-11 | |
+
+## Runda 5: starter alpha-11 (2026-10-28)
+
+BOM alpha-10 -> alpha-11 (MIGRATION-3.0.md, sekcja "Zmiany w 3.0.0-alpha-11"). `DevProfileLoopbackTest` sprawdza regułę guarda przez `DevProfileGuardAssertions.assertDevProfileLoopbackRule()` (A10-M1), więc przechodzi także w kontenerze CI. `./mvnw clean verify`: 28 testów, 0 błędów; `INVOCATION_ID=ci ./mvnw -B verify`: bez różnic. Start lokalny w profilu `dev`: health 200, POST /mcp bez JWT 401.

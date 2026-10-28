@@ -7,10 +7,11 @@ import pl.aiwcorpo.mcp.platform.text.UntrustedText;
 /**
  * Result of {@code get_record}. Text written in the backend system is an {@link UntrustedText}; a field the
  * system may leave empty is {@code @Nullable}, otherwise the result schema makes it required and a record
- * without it ends as {@code internal_error}. No Jackson annotations on the components: the result schema is
+ * without it ends as {@code internal_error}. The project is not optional: a record without one is not served at all
+ * (the adapter refuses it, and the policy needs it). No Jackson annotations on the components: the result schema is
  * built from their names.
  */
-public record ExampleRecordView(String id, @Nullable String project, UntrustedText title, @Nullable String status) {
+public record ExampleRecordView(String id, String project, UntrustedText title, @Nullable String status) {
 
     static final int TITLE_MAX_LENGTH = 500;
 

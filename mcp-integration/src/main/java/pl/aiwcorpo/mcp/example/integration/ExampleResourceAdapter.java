@@ -3,7 +3,9 @@ package pl.aiwcorpo.mcp.example.integration;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -21,6 +23,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 import pl.aiwcorpo.mcp.example.core.domain.ExampleRecord;
+import pl.aiwcorpo.mcp.example.core.domain.ExampleRecordHit;
 import pl.aiwcorpo.mcp.example.core.port.out.ExampleResourcePort;
 import pl.aiwcorpo.mcp.platform.security.BackendCredential;
 import pl.aiwcorpo.mcp.platform.security.CredentialContext;
@@ -40,16 +43,18 @@ import pl.aiwcorpo.mcp.platform.security.CredentialRequiredException;
 @EnableConfigurationProperties(ExampleBackendProperties.class)
 public class ExampleResourceAdapter implements ExampleResourcePort {
 
-    /** System id of this server: {@code server-id} is {@code mcp-<system>}, and the starter refuses any other. */
-    static final String SYSTEM = "example";
-
     private static final String DEV_PROFILE = "dev";
+    private static final String SERVER_ID_PROPERTY = "aiwcorpo.mcp.platform.server-id";
     private static final Logger LOG = LoggerFactory.getLogger(ExampleResourceAdapter.class);
 
     private final RestClient client;
+    private final String system;
 
     public ExampleResourceAdapter(ExampleBackendProperties properties, ObjectProvider<SslBundles> sslBundles,
             Environment environment) {
+        // The credential of the request is bound to the system of the server id (mcp-<system>), so the adapter asks
+        // for exactly that one; a constant here would drift from the configuration.
+        this.system = environment.getRequiredProperty(SERVER_ID_PROPERTY).substring("mcp-".length());
         this.client = RestClient.builder()
                 .baseUrl(requireBaseUrl(properties.baseUrl(),
                         environment.matchesProfiles(DEV_PROFILE) || properties.allowPlainHttp()))
@@ -73,18 +78,48 @@ public class ExampleResourceAdapter implements ExampleResourcePort {
 
     @Override
     public Optional<ExampleRecord> findById(String recordId) {
-        BackendCredential credential = CredentialContext.require(SYSTEM);
+        BackendCredential credential = CredentialContext.require(system);
         RecordResponse response;
         try {
-            response = client.get()
+            response = call(() -> client.get()
                     .uri("/api/records/{id}", recordId)
                     .headers(credential::applyTo)
                     .retrieve()
-                    .body(RecordResponse.class);
+                    .body(RecordResponse.class));
         } catch (HttpClientErrorException.NotFound | HttpClientErrorException.Forbidden hidden) {
             return Optional.empty();
+        }
+        if (response == null) {
+            throw new BackendResponseException("empty body");
+        }
+        return Optional.of(response.toDomain());
+    }
+
+    @Override
+    public List<ExampleRecordHit> search(String project, String text, int limit) {
+        BackendCredential credential = CredentialContext.require(system);
+        // Values go through URI template variables, which encode them: a text with "&project=HR" stays one value.
+        SearchResponse response = call(() -> client.get()
+                .uri("/api/records?project={project}&q={text}&limit={limit}", project, text, limit)
+                .headers(credential::applyTo)
+                .retrieve()
+                .body(SearchResponse.class));
+        if (response == null || response.records() == null) {
+            throw new BackendResponseException("empty body");
+        }
+        return response.records().stream().map(RecordResponse::toHit).toList();
+    }
+
+    /**
+     * Runs one backend call and maps its failures. 404 and 403 pass through as they are: for a single record they
+     * mean "not visible" (the caller turns them into an empty result, one client-facing code
+     * {@code not_found_or_denied}), for a search they are plain failures.
+     */
+    private <T> T call(Supplier<T> request) {
+        try {
+            return request.get();
         } catch (HttpClientErrorException.Unauthorized expired) {
-            throw new CredentialRequiredException(SYSTEM);
+            throw new CredentialRequiredException(system);
         } catch (RestClientResponseException | ResourceAccessException statusOrIo) {
             // Status-only exceptions (see the status handler) and I/O failures: the starter maps 502-504 and
             // unreachable backends to upstream_unavailable.
@@ -93,10 +128,6 @@ public class ExampleResourceAdapter implements ExampleResourcePort {
             // A 2xx body that does not parse: the converter's message quotes the body.
             throw new BackendResponseException("body not readable");
         }
-        if (response == null) {
-            throw new BackendResponseException("empty body");
-        }
-        return Optional.of(response.toDomain());
     }
 
     private static String requireBaseUrl(String baseUrl, boolean plainHttpAllowed) {
@@ -134,13 +165,27 @@ public class ExampleResourceAdapter implements ExampleResourcePort {
 
     /** The backend's representation; unknown fields are dropped here and never reach the model. */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record RecordResponse(String id, String project, String title, String status) {
+    record RecordResponse(String id, String project, String projectClassification, String title, String status) {
 
         ExampleRecord toDomain() {
             if (id == null || id.isBlank()) {
                 throw new BackendResponseException("record without id");
             }
-            return new ExampleRecord(id, project, title, status);
+            if (project == null || project.isBlank()) {
+                throw new BackendResponseException("record without project");
+            }
+            return new ExampleRecord(id, project, projectClassification, title, status);
         }
+
+        ExampleRecordHit toHit() {
+            if (id == null || id.isBlank()) {
+                throw new BackendResponseException("hit without id");
+            }
+            return new ExampleRecordHit(id, title);
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record SearchResponse(List<RecordResponse> records) {
     }
 }

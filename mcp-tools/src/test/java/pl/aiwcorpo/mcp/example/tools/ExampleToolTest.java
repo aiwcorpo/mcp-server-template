@@ -3,38 +3,48 @@ package pl.aiwcorpo.mcp.example.tools;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.tool.ToolCallback;
-import pl.aiwcorpo.mcp.example.core.domain.ExampleRecord;
+import pl.aiwcorpo.mcp.example.core.domain.ExampleResourceModel;
 import pl.aiwcorpo.mcp.platform.error.InvalidToolArgumentException;
 import pl.aiwcorpo.mcp.platform.input.SchemaLimitedToolCallbacks;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
+/** What the tool class checks itself and what its schemas publish; the policy and the wire are tested in mcp-app. */
 class ExampleToolTest {
 
-    private final ExampleTool tool = new ExampleTool(id -> new ExampleRecord(id, "ABC", "title", "open"));
+    private final ExampleTool tool = new ExampleTool((project, text) -> List.of(), null);
 
     @Test
-    void theToolChecksTheIdItselfWithAFixedMessage() {
-        for (String recordId : new String[] {"../admin", "..", ".hidden", "a".repeat(65), "", "ABC 1"}) {
-            assertThatThrownBy(() -> tool.getRecord(recordId))
+    void searchRejectsABlankOrTooLongTextWithAFixedMessage() {
+        for (String text : new String[] {"", "  ", "a".repeat(201)}) {
+            assertThatThrownBy(() -> tool.searchRecords("ABC", text))
                     .isInstanceOf(InvalidToolArgumentException.class)
-                    .hasMessage("recordId must be 1-64 characters: letters, digits, '-' or '_'");
+                    .hasMessage("text must be 1-200 characters");
         }
-        assertThatThrownBy(() -> tool.getRecord(null)).isInstanceOf(InvalidToolArgumentException.class);
-        assertThat(tool.getRecord("a".repeat(64)).id()).hasSize(64);
+        assertThatThrownBy(() -> tool.searchRecords("ABC", null)).isInstanceOf(InvalidToolArgumentException.class);
     }
 
     @Test
-    void theSchemaPublishesTheSameLimits() {
-        ToolCallback callback = SchemaLimitedToolCallbacks.of(tool).getToolCallbacks()[0];
-        JsonNode recordId = JsonMapper.builder().build().readTree(callback.getToolDefinition().inputSchema())
-                .path("properties").path("recordId");
+    void theSchemasPublishTheLimitsAndAreClosed() {
+        ToolCallback[] callbacks = SchemaLimitedToolCallbacks.of(tool).getToolCallbacks();
+        JsonMapper json = JsonMapper.builder().build();
 
-        assertThat(recordId.path("maxLength").asInt()).isEqualTo(ExampleTool.RECORD_ID_MAX_LENGTH);
-        assertThat(recordId.path("pattern").asString()).isEqualTo(ExampleTool.RECORD_ID_PATTERN);
-        assertThat(callback.getToolDefinition().name()).isEqualTo("get_record");
-        assertThat(callback.getToolDefinition().inputSchema()).contains("\"additionalProperties\":false");
+        for (ToolCallback callback : callbacks) {
+            JsonNode schema = json.readTree(callback.getToolDefinition().inputSchema());
+            assertThat(schema.path("additionalProperties").asBoolean(true)).as(callback.getToolDefinition().name()).isFalse();
+            assertThat(schema.toString()).doesNotContain("$ref", "anyOf", "oneOf");
+        }
+        assertThat(callbacks[0].getToolDefinition().name()).isEqualTo("get_record");
+        JsonNode recordId = json.readTree(callbacks[0].getToolDefinition().inputSchema()).path("properties").path("recordId");
+        assertThat(recordId.path("maxLength").asInt()).isEqualTo(ExampleResourceModel.RECORD_ID_MAX_LENGTH);
+        assertThat(recordId.path("pattern").asString()).startsWith("^").endsWith("$");
+
+        assertThat(callbacks[1].getToolDefinition().name()).isEqualTo("search_records");
+        JsonNode properties = json.readTree(callbacks[1].getToolDefinition().inputSchema()).path("properties");
+        assertThat(properties.path("project").path("pattern").asString()).startsWith("^").endsWith("$");
+        assertThat(properties.path("text").path("maxLength").asInt()).isEqualTo(ExampleTool.SEARCH_TEXT_MAX_LENGTH);
     }
 }

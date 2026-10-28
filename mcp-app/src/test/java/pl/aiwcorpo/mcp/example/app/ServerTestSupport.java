@@ -11,6 +11,7 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -31,7 +32,6 @@ import tools.jackson.databind.json.JsonMapper;
 @ActiveProfiles("dev")
 abstract class ServerTestSupport {
 
-    static final String SERVER_ID = "mcp-example";
     static final String SYSTEM = "example";
 
     /**
@@ -40,6 +40,15 @@ abstract class ServerTestSupport {
      * on the list (checked in {@link #contractSystemIsKnown()}).
      */
     static final boolean TRIAL_SYSTEM = true;
+
+    /**
+     * The sample policy bundles of the contracts permit the five real systems only. A trial system therefore runs
+     * its tests under the identity of Jira (server id, groups, credential system); the code under test does not know:
+     * it takes the system from the server id.
+     */
+    static final String POLICY_SYSTEM = TRIAL_SYSTEM ? "jira" : SYSTEM;
+    static final String SERVER_ID = "mcp-" + POLICY_SYSTEM;
+    static final String READ_GROUP = "mcp-" + POLICY_SYSTEM + "-read";
     static final String ENDPOINT = "/mcp";
     static final Set<String> CONTRACT_SYSTEMS = contractSystems();
 
@@ -62,9 +71,14 @@ abstract class ServerTestSupport {
         return "http://127.0.0.1:" + port;
     }
 
-    /** An MCP client that reaches the server the way the gateway does, with {@code credential} as C3 header. */
+    /** An MCP client of a user in the read group, reaching the server the way the gateway does, with {@code credential} as C3 header. */
     McpSyncClient clientWithCredential(String credential) {
-        return clientWithToken(user -> user.username("jkowalski"), credential);
+        return clientWithToken(ServerTestSupport::reader, credential);
+    }
+
+    /** The caller of most tests: a member of the read group of the system. */
+    static void reader(TestGateway.Token user) {
+        user.username("jkowalski").groups(List.of(READ_GROUP));
     }
 
     /** As {@link #clientWithCredential}, with the caller's token shaped by {@code user} (claims of a link call). */
@@ -79,20 +93,11 @@ abstract class ServerTestSupport {
         return client;
     }
 
-    /**
-     * The starter sends only C10 errors valid against {@code tool-error.schema.json}, whose {@code system} is the
-     * closed {@code SystemId} list of the contracts. A trial system (outside the list) gets {@code internal_error}
-     * instead; a real system must get the full error with the portal link, never {@code internal_error}.
-     */
+    /** The error a client gets when the user has not connected the account: C10 {@code credential_required} with the portal link. */
     static void assertCredentialRequired(McpSchema.CallToolResult result) {
         assertThat(result.isError()).isTrue();
-        if (TRIAL_SYSTEM) {
-            assertThat(CONTRACT_SYSTEMS).as("a trial system is outside SystemId").doesNotContain(SYSTEM);
-            assertThat(text(result)).contains("\"error\":\"internal_error\"");
-        } else {
-            assertThat(text(result)).contains("\"error\":\"credential_required\"", "\"system\":\"" + SYSTEM + "\"",
-                    "\"connectUrl\":\"http://localhost:18090/connections?system=" + SYSTEM + "\"");
-        }
+        assertThat(text(result)).contains("\"error\":\"credential_required\"", "\"system\":\"" + POLICY_SYSTEM + "\"",
+                "\"connectUrl\":\"http://localhost:18090/connections?system=" + POLICY_SYSTEM + "\"");
     }
 
     /** A real server's system is one of the contracts'; a trial one is not. */

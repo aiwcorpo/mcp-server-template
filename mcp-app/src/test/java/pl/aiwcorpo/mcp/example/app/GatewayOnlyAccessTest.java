@@ -17,7 +17,8 @@ import pl.aiwcorpo.mcp.platform.test.TestGateway;
 class GatewayOnlyAccessTest extends ServerTestSupport {
 
     private static final String GET_RECORD = """
-            {"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_record","arguments":{"recordId":"ABC-1"}}}""";
+            {"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_record","arguments":{"recordId":"%s"}}}"""
+            .formatted(StubBackend.OPEN_1);
 
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
 

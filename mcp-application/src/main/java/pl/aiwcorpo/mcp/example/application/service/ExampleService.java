@@ -1,7 +1,7 @@
 package pl.aiwcorpo.mcp.example.application.service;
 
-import pl.aiwcorpo.mcp.example.core.domain.ExampleRecord;
-import pl.aiwcorpo.mcp.example.core.domain.RecordNotFoundException;
+import java.util.List;
+import pl.aiwcorpo.mcp.example.core.domain.ExampleRecordHit;
 import pl.aiwcorpo.mcp.example.core.port.in.ExampleUseCase;
 import pl.aiwcorpo.mcp.example.core.port.out.ExampleResourcePort;
 
@@ -15,7 +15,8 @@ public class ExampleService implements ExampleUseCase {
     }
 
     @Override
-    public ExampleRecord getRecord(String recordId) {
-        return resource.findById(recordId).orElseThrow(RecordNotFoundException::new);
+    public List<ExampleRecordHit> searchRecords(String project, String text) {
+        List<ExampleRecordHit> hits = resource.search(project, text, MAX_HITS);
+        return hits.size() > MAX_HITS ? hits.subList(0, MAX_HITS) : hits;
     }
 }

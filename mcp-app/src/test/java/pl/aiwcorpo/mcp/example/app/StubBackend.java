@@ -7,8 +7,12 @@ import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 
@@ -16,18 +20,24 @@ import java.util.concurrent.Executors;
  * The backend system in tests: a real HTTP server on loopback, so the adapter runs with its real client,
  * timeouts and error mapping. Records it knows:
  * <ul>
- *   <li>{@code ABC-1}: visible, with an extra field the server must not pass on;</li>
- *   <li>{@code ABC-PARTIAL}: only the id and the title, without project and status;</li>
- *   <li>{@code ABC-403}: exists but the caller may not see it (403);</li>
- *   <li>{@code ABC-500}: the backend fails and echoes the caller's Authorization header in the body;</li>
- *   <li>{@code ABC-BADJSON}: 200 with a body that is not JSON and carries {@link #BODY_MARKER};</li>
- *   <li>{@code ABC-NOID}: 200 with a record without id;</li>
- *   <li>{@code ABC-302}: redirect to a second server, which records whether anything followed;</li>
- *   <li>{@code ABC-SLOW}: answers after {@link #SLOW_MILLIS};</li>
- *   <li>{@code ABC-HUGE}: 200 with a body of {@link #HUGE_BYTES};</li>
+ *   <li>{@link #OPEN_1}, {@link #OPEN_2}: visible, in the open project (no classification), {@link #OPEN_1} with an
+ *       extra field the server must not pass on;</li>
+ *   <li>{@link #OTHER_7}: visible, in another open project;</li>
+ *   <li>{@link #RESTRICTED_5}: visible to the user in the backend, but its project is classified Restricted;</li>
+ *   <li>{@link #MOVED}: moved to the restricted project after the id was issued; the backend answers the old id with
+ *       the record as it is now ({@link #MOVED_NOW});</li>
+ *   <li>{@link #UNCLASSIFIED}: in a project whose classification the backend does not report;</li>
+ *   <li>{@link #NO_STATUS}: without status; {@link #NO_PROJECT}: without project (a faulty answer);</li>
+ *   <li>{@link #FORBIDDEN}: exists but the caller may not see it (403);</li>
+ *   <li>{@link #FAILING}: the backend fails and echoes the caller's Authorization header in the body;</li>
+ *   <li>{@link #BAD_JSON}: 200 with a body that is not JSON and carries {@link #BODY_MARKER};</li>
+ *   <li>{@link #NO_ID}: 200 with a record without id;</li>
+ *   <li>{@link #REDIRECT}: redirect to a second server, which records whether anything followed;</li>
+ *   <li>{@link #SLOW}: answers after {@link #SLOW_MILLIS}; {@link #HUGE}: 200 with a body of {@link #HUGE_BYTES};</li>
  *   <li>anything else: 404.</li>
  * </ul>
- * Any request with {@link #EXPIRED_CREDENTIAL} is answered 401, like a revoked token.
+ * The search of a project returns its own records and, as a backend with links between records does, records of other
+ * projects. Any request with {@link #EXPIRED_CREDENTIAL} is answered 401, like a revoked token.
  */
 final class StubBackend {
 
@@ -36,10 +46,33 @@ final class StubBackend {
     static final long SLOW_MILLIS = 4_000;
     static final int HUGE_BYTES = 256 * 1024;
 
+    static final String OPEN_1 = SampleScope.id(SampleScope.OPEN_PROJECT, 1);
+    static final String OPEN_2 = SampleScope.id(SampleScope.OPEN_PROJECT, 2);
+    static final String OTHER_7 = SampleScope.id(SampleScope.OTHER_PROJECT, 7);
+    static final String RESTRICTED_5 = SampleScope.id(SampleScope.RESTRICTED_PROJECT, 5);
+    static final String MOVED = SampleScope.id(SampleScope.OPEN_PROJECT, 123);
+    static final String MOVED_NOW = SampleScope.id(SampleScope.RESTRICTED_PROJECT, 45);
+    static final String UNCLASSIFIED = SampleScope.id(SampleScope.UNCLASSIFIED_PROJECT, 1);
+    static final String NO_STATUS = SampleScope.id(SampleScope.OPEN_PROJECT, 901);
+    static final String NO_PROJECT = SampleScope.id(SampleScope.OPEN_PROJECT, 902);
+    static final String FORBIDDEN = SampleScope.id(SampleScope.OPEN_PROJECT, 903);
+    static final String FAILING = SampleScope.id(SampleScope.OPEN_PROJECT, 904);
+    static final String BAD_JSON = SampleScope.id(SampleScope.OPEN_PROJECT, 905);
+    static final String NO_ID = SampleScope.id(SampleScope.OPEN_PROJECT, 906);
+    static final String REDIRECT = SampleScope.id(SampleScope.OPEN_PROJECT, 907);
+    static final String SLOW = SampleScope.id(SampleScope.OPEN_PROJECT, 908);
+    static final String HUGE = SampleScope.id(SampleScope.OPEN_PROJECT, 909);
+    /** Searching this project makes the backend fail. */
+    static final String FAIL_PROJECT = "FAIL";
+    static final String MISSING = SampleScope.id(SampleScope.OPEN_PROJECT, 404);
+
+    private static final String RECORDS = "/api/records/";
+
     private final HttpServer server;
     private final HttpServer elsewhere;
     private final List<String> authorizations = new CopyOnWriteArrayList<>();
     private final List<String> elsewhereHits = new CopyOnWriteArrayList<>();
+    private final List<String> searches = new CopyOnWriteArrayList<>();
 
     private StubBackend(HttpServer server, HttpServer elsewhere) {
         this.server = server;
@@ -51,10 +84,11 @@ final class StubBackend {
             HttpServer server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
             HttpServer elsewhere = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
             StubBackend backend = new StubBackend(server, elsewhere);
-            server.createContext("/api/records/", backend::handle);
+            server.createContext(RECORDS, backend::handle);
+            server.createContext("/api/records", backend::search);
             elsewhere.createContext("/", exchange -> {
                 backend.elsewhereHits.add(String.valueOf(exchange.getRequestHeaders().getFirst("Authorization")));
-                respond(exchange, 200, "{\"id\":\"ABC-302\",\"title\":\"from elsewhere\"}");
+                respond(exchange, 200, record(REDIRECT, SampleScope.OPEN_PROJECT, "\"\"", "from elsewhere"));
             });
             // The slow record must not hold up the requests of the next test.
             server.setExecutor(Executors.newCachedThreadPool());
@@ -80,44 +114,119 @@ final class StubBackend {
         return List.copyOf(elsewhereHits);
     }
 
+    /** Raw (still encoded) query strings of the searches received so far. */
+    List<String> searches() {
+        return List.copyOf(searches);
+    }
+
     void reset() {
         authorizations.clear();
         elsewhereHits.clear();
+        searches.clear();
+    }
+
+    private void search(HttpExchange exchange) throws IOException {
+        String authorization = exchange.getRequestHeaders().getFirst("Authorization");
+        authorizations.add(String.valueOf(authorization));
+        String rawQuery = String.valueOf(exchange.getRequestURI().getRawQuery());
+        searches.add(rawQuery);
+        if (EXPIRED_CREDENTIAL.equals(authorization)) {
+            respond(exchange, 401, "{\"message\":\"token expired\"}");
+            return;
+        }
+        Map<String, List<String>> parameters = parameters(exchange.getRequestURI().getRawQuery());
+        String project = parameters.getOrDefault("project", List.of("")).getFirst();
+        String text = parameters.getOrDefault("q", List.of("")).getFirst().toLowerCase(Locale.ROOT);
+        if (FAIL_PROJECT.equals(project)) {
+            respond(exchange, 500, "{\"error\":\"boom\",\"seen\":\"" + authorization + "\"}");
+            return;
+        }
+        List<String> hits = new ArrayList<>();
+        for (String[] hit : SEARCH_ROWS) {
+            if (hit[0].equals(project) && hit[2].toLowerCase(Locale.ROOT).contains(text)) {
+                hits.add("{\"id\":\"" + hit[1] + "\",\"title\":\"" + hit[2] + "\"}");
+            }
+        }
+        respond(exchange, 200, "{\"records\":[" + String.join(",", hits) + "],\"total\":" + hits.size() + "}");
+    }
+
+    /** Searched project, id, title. Project ABC links to a record of DEF, to a restricted one and to a moved one. */
+    private static final String[][] SEARCH_ROWS = {
+            {SampleScope.OPEN_PROJECT, OPEN_1, "Quarterly report"},
+            {SampleScope.OPEN_PROJECT, OPEN_2, "Report archive"},
+            {SampleScope.OPEN_PROJECT, OTHER_7, "Report of the other team"},
+            {SampleScope.OPEN_PROJECT, RESTRICTED_5, "Salary report"},
+            {SampleScope.OPEN_PROJECT, MOVED, "Payroll report moved away"},
+            {SampleScope.OTHER_PROJECT, OTHER_7, "Report of the other team"},
+            {SampleScope.RESTRICTED_PROJECT, RESTRICTED_5, "Salary report"},
+    };
+
+    private static Map<String, List<String>> parameters(String rawQuery) {
+        Map<String, List<String>> parameters = new java.util.LinkedHashMap<>();
+        if (rawQuery == null) {
+            return parameters;
+        }
+        for (String pair : rawQuery.split("&")) {
+            int eq = pair.indexOf('=');
+            String name = eq < 0 ? pair : pair.substring(0, eq);
+            String value = eq < 0 ? "" : URLDecoder.decode(pair.substring(eq + 1), StandardCharsets.UTF_8);
+            parameters.computeIfAbsent(name, key -> new ArrayList<>()).add(value);
+        }
+        return parameters;
     }
 
     private void handle(HttpExchange exchange) throws IOException {
         String authorization = exchange.getRequestHeaders().getFirst("Authorization");
         authorizations.add(String.valueOf(authorization));
-        String id = exchange.getRequestURI().getPath().substring("/api/records/".length());
+        String id = exchange.getRequestURI().getPath().substring(RECORDS.length());
+        String open = SampleScope.OPEN_PROJECT;
         if (EXPIRED_CREDENTIAL.equals(authorization)) {
             respond(exchange, 401, "{\"message\":\"token expired\"}");
-        } else if ("ABC-1".equals(id)) {
-            respond(exchange, 200, """
-                    {"id":"ABC-1","project":"ABC","title":"Quarterly report","status":"open",
-                     "internalNotes":"not for the model"}""");
-        } else if ("ABC-PARTIAL".equals(id)) {
-            respond(exchange, 200, "{\"id\":\"ABC-PARTIAL\",\"title\":\"Sparse record\"}");
-        } else if ("ABC-BADJSON".equals(id)) {
+        } else if (OPEN_1.equals(id)) {
+            respond(exchange, 200, "{\"id\":\"" + OPEN_1 + "\",\"project\":\"" + open + "\",\"projectClassification\":\"\","
+                    + "\"title\":\"Quarterly report\",\"status\":\"open\",\"internalNotes\":\"not for the model\"}");
+        } else if (OPEN_2.equals(id)) {
+            respond(exchange, 200, record(OPEN_2, open, "\"\"", "Report archive"));
+        } else if (OTHER_7.equals(id)) {
+            respond(exchange, 200, record(OTHER_7, SampleScope.OTHER_PROJECT, "\"\"", "Report of the other team"));
+        } else if (RESTRICTED_5.equals(id)) {
+            respond(exchange, 200, record(RESTRICTED_5, SampleScope.RESTRICTED_PROJECT, "\"Restricted\"", "Salary report"));
+        } else if (MOVED.equals(id)) {
+            respond(exchange, 200, record(MOVED_NOW, SampleScope.RESTRICTED_PROJECT, "\"Restricted\"", "Payroll report moved away"));
+        } else if (UNCLASSIFIED.equals(id)) {
+            respond(exchange, 200, "{\"id\":\"" + UNCLASSIFIED + "\",\"project\":\"" + SampleScope.UNCLASSIFIED_PROJECT
+                    + "\",\"title\":\"Unclassified project\",\"status\":\"open\"}");
+        } else if (NO_STATUS.equals(id)) {
+            respond(exchange, 200, "{\"id\":\"" + NO_STATUS + "\",\"project\":\"" + open
+                    + "\",\"projectClassification\":\"\",\"title\":\"Sparse record\"}");
+        } else if (NO_PROJECT.equals(id)) {
+            respond(exchange, 200, "{\"id\":\"" + NO_PROJECT + "\",\"title\":\"no project\"}");
+        } else if (BAD_JSON.equals(id)) {
             respond(exchange, 200, "<html>" + BODY_MARKER + " login</html>");
-        } else if ("ABC-NOID".equals(id)) {
-            respond(exchange, 200, "{\"title\":\"no id\"}");
-        } else if ("ABC-302".equals(id)) {
+        } else if (NO_ID.equals(id)) {
+            respond(exchange, 200, "{\"project\":\"" + open + "\",\"title\":\"no id\"}");
+        } else if (REDIRECT.equals(id)) {
             exchange.getResponseHeaders().set("Location",
-                    "http://127.0.0.1:" + elsewhere.getAddress().getPort() + "/api/records/ABC-302");
+                    "http://127.0.0.1:" + elsewhere.getAddress().getPort() + RECORDS + REDIRECT);
             exchange.sendResponseHeaders(302, -1);
             exchange.close();
-        } else if ("ABC-SLOW".equals(id)) {
+        } else if (SLOW.equals(id)) {
             sleep();
-            respond(exchange, 200, "{\"id\":\"ABC-SLOW\",\"title\":\"late\"}");
-        } else if ("ABC-HUGE".equals(id)) {
-            respond(exchange, 200, "{\"id\":\"ABC-HUGE\",\"title\":\"" + "x".repeat(HUGE_BYTES) + "\"}");
-        } else if ("ABC-403".equals(id)) {
+            respond(exchange, 200, record(SLOW, open, "\"\"", "late"));
+        } else if (HUGE.equals(id)) {
+            respond(exchange, 200, record(HUGE, open, "\"\"", "x".repeat(HUGE_BYTES)));
+        } else if (FORBIDDEN.equals(id)) {
             respond(exchange, 403, "{\"message\":\"forbidden\"}");
-        } else if ("ABC-500".equals(id)) {
+        } else if (FAILING.equals(id)) {
             respond(exchange, 500, "{\"error\":\"boom\",\"seen\":\"" + authorization + "\"}");
         } else {
             respond(exchange, 404, "{\"message\":\"no such record\"}");
         }
+    }
+
+    private static String record(String id, String project, String classificationJson, String title) {
+        return "{\"id\":\"" + id + "\",\"project\":\"" + project + "\",\"projectClassification\":" + classificationJson
+                + ",\"title\":\"" + title + "\",\"status\":\"open\"}";
     }
 
     private static void sleep() {

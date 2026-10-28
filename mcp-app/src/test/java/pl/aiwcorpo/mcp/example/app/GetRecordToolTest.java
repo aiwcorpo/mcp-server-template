@@ -45,6 +45,17 @@ class GetRecordToolTest extends ServerTestSupport {
     }
 
     @Test
+    void aRecordWithoutTheOptionalFieldsIsAnOkResultWithNulls() {
+        try (McpSyncClient client = clientWithCredential(PAT)) {
+            McpSchema.CallToolResult result = call(client, "get_record", Map.of("recordId", "ABC-PARTIAL"));
+
+            assertThat(result.isError()).isFalse();
+            assertThat(text(result)).contains("\"id\":\"ABC-PARTIAL\"", "\"text\":\"Sparse record\"")
+                    .contains("\"project\":null", "\"status\":null");
+        }
+    }
+
+    @Test
     void acceptsTheVirtualServerClaimsOfACallThroughALink() {
         try (McpSyncClient client = clientWithToken(
                 user -> user.username("jkowalski").virtualServer("team-reports", Map.of()), PAT)) {

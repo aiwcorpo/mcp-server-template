@@ -10,7 +10,7 @@ import pl.aiwcorpo.mcp.platform.text.UntrustedText;
  * without it ends as {@code internal_error}. No Jackson annotations on the components: the result schema is
  * built from their names.
  */
-public record ExampleRecordView(String id, String project, UntrustedText title, @Nullable String status) {
+public record ExampleRecordView(String id, @Nullable String project, UntrustedText title, @Nullable String status) {
 
     static final int TITLE_MAX_LENGTH = 500;
 

@@ -34,7 +34,7 @@ Starter: BOM `pl.aiwcorpo.mcp:mcp-platform-bom:3.0.0-alpha-10` (kontrakty 2.1.1,
 
 ## Dowód (2026-10-28, alpha-10)
 
-`./mvnw -B clean verify`: 23 testy, 0 błędów (`GetRecordToolTest` 15, w tym wywołanie z `vs`/`vsc`).
+`./mvnw -B clean verify`: 28 testów, 0 błędów (24 w mcp-app, w tym `GetRecordToolTest` 16 z wywołaniem z `vs`/`vsc` i rekordem częściowym; 2 w mcp-application, 2 w mcp-tools).
 Poniżej dowód z alpha-5 (2026-10-27), skrypty `new-server.sh` bez zmian.
 
 ## Dowód (2026-10-27, alpha-5)
@@ -64,7 +64,7 @@ cd <workspace>/mcp-server-template
 export JAVA_HOME=/opt/homebrew/Cellar/openjdk@25/25.0.4.1/libexec/openjdk.jdk/Contents/Home
 ./mvnw -B verify                           # raz: kontrakty w ~/.m2 (skrypt czyta z nich SystemId)
 ./new-server.sh jira                       # -> ../mcp-server-jira (nie może istnieć)
-cd ../mcp-server-jira && git init && ./mvnw -B verify   # 22 testy, bez zmian
+cd ../mcp-server-jira && git init && ./mvnw -B verify   # 28 testów, bez zmian
 ```
 
 Zamiany (`example`/`Example`/`EXAMPLE` -> `<system>`/`<System>`/`<SYSTEM>` w treści i ścieżkach) i lista tego,
@@ -149,12 +149,10 @@ diff -ru /tmp/mcp-server-jira-ref <repo serwera> -x .git -x target
 
 ## Znane ograniczenia i odłożone znaleziska recenzji (LOW)
 
-- L5: błąd walidacji schematu wejścia (MCP SDK) nie jest w formacie C10 (`Tool (...) input validation failed`);
-  po dodaniu `pattern`/`maxLength` dotyczy też złych identyfikatorów. Tekst nie zawiera wartości argumentu.
-  Do starteru (ws-02).
+- L5: zamknięte (starter alpha-6: błąd walidacji schematu wejścia jest w formacie C10 `invalid_argument`).
 - L7: Redis `jti` bez TLS (hasło ACL otwartym tekstem w sieci wewnętrznej). Do decyzji przy wdrożeniu; Spring
   ma `spring.data.redis.ssl.bundle`, template tego nie włącza, bo Redis w `mcp-platform-dev` nie ma TLS.
-- L9: treść z systemu bez oznaczenia jako dane (wzorzec w M2 razem z `ResultFilter`).
+- L9: zamknięte (`ExampleRecordView.title` to `UntrustedText`; `ResultFilter` dopiero w M3).
 - Serwer systemu spoza `SystemId` (template `example`, próbny `demo`) wstaje tylko w `dev`; `credential_required`
   jest wtedy `internal_error`.
 - Zrobione z LOW: L1 (3xx), L2 (rekord bez `id`), L3 i L4 (dokumentacja), L6 (`new-server.sh`), L7 częściowo
@@ -173,3 +171,11 @@ diff -ru /tmp/mcp-server-jira-ref <repo serwera> -x .git -x target
 ## Propozycje zmian kontraktu
 
 Brak.
+
+## Runda 4: poprawki przeglądu alpha-10 (2026-10-28)
+
+| Znalezisko | Status | Dowód |
+| --- | --- | --- |
+| T3-L1 brak testu rekordu z pustymi polami opcjonalnymi; `project` wymagane w wyniku | poprawione: `project` jest `@Nullable` (adapter wymaga tylko `id`), stub ma rekord `ABC-PARTIAL` bez `project` i `status` | `GetRecordToolTest.aRecordWithoutTheOptionalFieldsIsAnOkResultWithNulls` |
+| T3-L2 STATUS nieaktualny | poprawione: liczby testów (28 w template i w wygenerowanym serwerze), L5 i L9 zamknięte | |
+| A10-M1 `DevProfileLoopbackTest` | bez zmian, rozwiąże starter alpha-11 | |

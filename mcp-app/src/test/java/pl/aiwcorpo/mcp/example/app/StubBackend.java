@@ -17,6 +17,7 @@ import java.util.concurrent.Executors;
  * timeouts and error mapping. Records it knows:
  * <ul>
  *   <li>{@code ABC-1}: visible, with an extra field the server must not pass on;</li>
+ *   <li>{@code ABC-PARTIAL}: only the id and the title, without project and status;</li>
  *   <li>{@code ABC-403}: exists but the caller may not see it (403);</li>
  *   <li>{@code ABC-500}: the backend fails and echoes the caller's Authorization header in the body;</li>
  *   <li>{@code ABC-BADJSON}: 200 with a body that is not JSON and carries {@link #BODY_MARKER};</li>
@@ -94,6 +95,8 @@ final class StubBackend {
             respond(exchange, 200, """
                     {"id":"ABC-1","project":"ABC","title":"Quarterly report","status":"open",
                      "internalNotes":"not for the model"}""");
+        } else if ("ABC-PARTIAL".equals(id)) {
+            respond(exchange, 200, "{\"id\":\"ABC-PARTIAL\",\"title\":\"Sparse record\"}");
         } else if ("ABC-BADJSON".equals(id)) {
             respond(exchange, 200, "<html>" + BODY_MARKER + " login</html>");
         } else if ("ABC-NOID".equals(id)) {

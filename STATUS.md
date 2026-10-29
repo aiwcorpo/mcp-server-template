@@ -12,6 +12,23 @@ Starter (stan sprzed M4): BOM `pl.aiwcorpo.mcp:mcp-platform-bom:3.0.0-beta-4` (k
 2.0.0, Java 25). Commity: 7f65f8f (M1), c799e54, c1258c4, 83b9f3c (alpha-10), 00f87f4, 80603f4 (alpha-11), następnie M3
 (patrz `git log`). Wyszukiwanie nie przyjmuje od modelu JQL/CQL: `ExampleSearchQuery` buduje zapytanie przez `StructuredQuery`.
 
+## M4b: beta-6 -> beta-7, kontrakty 4.1.0 (2026-10-29)
+
+Wg MIGRATION "Z beta-6 na beta-7"; commit osobny od M4. `./mvnw clean verify`: 69 testów, 9 pominiętych (jak niżej: 8 `ManifestTest` + 1 `QUERY_CARRIES_LINK`);
+`tests/new-server-test.sh --build`: 0 błędów (jira, confluence, gitlab, servicedesk, opensearch, demo).
+
+- `credential-type` usunięte: `accepted-credential-types` z typem domyślnym na pierwszym miejscu (`new-server.sh`: gitlab `user-oauth,user-secret`,
+  servicedesk `service-account`, opensearch `token-exchange`, reszta `user-secret`). Test: żądanie z typem spoza listy to `internal_error` przed backendem
+  (`GetRecordToolTest`), `ServerTestSupport.clientWithToken(..., typ)`; `TestGateway` nadal dostaje listę z jednym typem systemu.
+- OpenSearch: `opensearchSearchTarget` (puste = nie pytaj), `OPENSEARCH_RESOLVE_PARAMETERS` (`expand_wildcards=open`), 404 z `_resolve/index` jako
+  `EMPTY_RESOLVE_RESPONSE`; testy `IndexResolutionTest` o 404 i parametrach.
+- `ResourcePolicy` z listą typów: szablon nie buduje go sam, bez zmian.
+- Zakres w paczce na kontener: testy Confluence używają przestrzeni `ENG` z grupą `mcp-confluence-space-ENG`, Service Desk kolejki `42`
+  (`mcp-servicedesk-queue-42`); rekord w kontenerze poza zakresami wywołującego to `not_found_or_denied`, także gdy brakuje klasyfikacji
+  (`UNCLASSIFIED_OUTSIDE_SCOPE`). Paczka serwera Service Desku musi nadawać zakresy `mcp-servicedesk-queue-*`.
+- Dla ws-04 (ponad listę M4): usunąć `credential-type`, ustawić kolejność `accepted-credential-types`, w testach grupy zakresu (Confluence `mcp-confluence-space-<KEY>`),
+  OpenSearch przez `opensearchSearchTarget` i `OPENSEARCH_RESOLVE_PARAMETERS`, 404 resolve jako pusty; dla wszystkich beta-7 w pom.
+
 ## M4: beta-5 -> beta-6, kontrakty 4.0.0 (2026-10-29)
 
 Wg MIGRATION "Z beta-5 na beta-6". Testy: template 68 (`./mvnw clean verify`: mcp-app 62, mcp-application 3, mcp-tools 3), z czego 9 pominiętych

@@ -22,6 +22,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import pl.aiwcorpo.mcp.platform.security.BackendCredential;
 import pl.aiwcorpo.mcp.platform.test.TestGateway;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -55,9 +56,8 @@ abstract class ServerTestSupport {
     @DynamicPropertySource
     static void environment(DynamicPropertyRegistry registry) {
         GATEWAY.serverProperties().forEach((name, value) -> registry.add(name, () -> value));
-        // TestGateway assumes user-secret; the server of a system that gets another type must say so in its own
-        // configuration, and accept only that type, as the gateway checks at registration (credential_type_mismatch).
-        registry.add("aiwcorpo.mcp.platform.credential-type", () -> SampleScope.CREDENTIAL_TYPE.wireName());
+        // TestGateway accepts user-secret and user-oauth; the server of a system with another type says so in its own
+        // configuration (the first accepted type is the default of the system).
         registry.add("aiwcorpo.mcp.platform.manifest.accepted-credential-types", () -> SampleScope.CREDENTIAL_TYPE.wireName());
         registry.add("example.backend.base-url", BACKEND::baseUrl);
         // The artifact the build hands to the registration step: the manifest of the commit under review, not an answer
@@ -87,10 +87,15 @@ abstract class ServerTestSupport {
 
     /** As {@link #clientWithCredential}, with the caller's token shaped by {@code user} (claims of a link call). */
     McpSyncClient clientWithToken(Consumer<TestGateway.Token> user, String credential) {
+        return clientWithToken(user, credential, SampleScope.CREDENTIAL_TYPE);
+    }
+
+    /** As above with the credential type the gateway puts in {@code X-MCP-Credential-Type}. */
+    McpSyncClient clientWithToken(Consumer<TestGateway.Token> user, String credential, BackendCredential.Type type) {
         HttpClientStreamableHttpTransport transport = HttpClientStreamableHttpTransport.builder(baseUrl())
                 .endpoint(ENDPOINT)
                 .openConnectionOnStartup(false)
-                .httpRequestCustomizer(GATEWAY.asGateway(user, credential, SampleScope.CREDENTIAL_TYPE))
+                .httpRequestCustomizer(GATEWAY.asGateway(user, credential, type))
                 .build();
         McpSyncClient client = McpClient.sync(transport).requestTimeout(Duration.ofSeconds(20)).build();
         client.initialize();

@@ -47,7 +47,7 @@ profil jest budowany i przechodzi `verify` (`tests/new-server-test.sh --build`).
 
 Pliki profilu bez odpowiednika w template'cie są dodawane (OpenSearch: `IndexResolutionTest`). OpenSearch podmienia
 ponadto port, przypadek użycia, serwis, adapter, narzędzie i test narzędzia (wyszukiwanie po nazwach indeksów). Skrypt
-ustawia też `credential-type` i `accepted-credential-types` w `application*.yml` (Jira i Confluence `user-secret`, GitLab
+ustawia też `accepted-credential-types` (typ domyślny pierwszy) w `application*.yml` (Jira i Confluence `user-secret`, GitLab
 `user-oauth`, Service Desk `service-account`, OpenSearch `token-exchange`).
 
 Ścieżka docelowa (także względna, liczona od bieżącego katalogu) nie może istnieć ani leżeć w template'ie.

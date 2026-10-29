@@ -83,6 +83,8 @@ final class StubBackend {
     private final List<String> batches = new CopyOnWriteArrayList<>();
     private final List<String> indexSearches = new CopyOnWriteArrayList<>();
     private final List<String> resolutions = new CopyOnWriteArrayList<>();
+    private final List<String> resolutionQueries = new CopyOnWriteArrayList<>();
+    private volatile boolean resolveNotFound;
 
     private StubBackend(HttpServer server, HttpServer elsewhere) {
         this.server = server;
@@ -145,9 +147,21 @@ final class StubBackend {
         return List.copyOf(resolutions);
     }
 
+    /** The query strings of the {@code _resolve/index} calls so far. */
+    List<String> resolutionQueries() {
+        return List.copyOf(resolutionQueries);
+    }
+
+    /** Makes {@code _resolve/index} answer 404 index_not_found_exception, as a cluster does when no index matches. */
+    void resolveAnswersNotFound(boolean value) {
+        resolveNotFound = value;
+    }
+
     void reset() {
+        resolveNotFound = false;
         indexSearches.clear();
         resolutions.clear();
+        resolutionQueries.clear();
         authorizations.clear();
         elsewhereHits.clear();
         searches.clear();
@@ -235,6 +249,11 @@ final class StubBackend {
         }
         String expression = exchange.getRequestURI().getPath().substring("/_resolve/index/".length());
         resolutions.add(expression);
+        resolutionQueries.add(String.valueOf(exchange.getRequestURI().getRawQuery()));
+        if (resolveNotFound) {
+            respond(exchange, 404, "{\"error\":{\"type\":\"index_not_found_exception\"},\"status\":404}");
+            return;
+        }
         List<String> patterns = List.of(expression.split(","));
         List<String> names = new ArrayList<>(List.of(OPEN_1, OPEN_2, OTHER_7, RESTRICTED_5, MOVED, UNCLASSIFIED));
         names.add(ALIAS);

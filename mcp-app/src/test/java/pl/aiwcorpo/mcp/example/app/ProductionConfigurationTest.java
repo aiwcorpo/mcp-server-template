@@ -56,17 +56,17 @@ class ProductionConfigurationTest {
     }
 
     @Test
-    void theCredentialTypeIsSetAndAcceptedByTheManifestInEveryConfiguration() throws IOException {
+    void theDefaultCredentialTypeIsTheFirstAcceptedTypeInEveryConfiguration() throws IOException {
         PropertySource<?> base = new YamlPropertySourceLoader()
                 .load("application.yml", new ClassPathResource("application.yml")).getFirst();
         PropertySource<?> dev = new YamlPropertySourceLoader()
                 .load("application-dev.yml", new ClassPathResource("application-dev.yml")).getFirst();
 
-        String type = String.valueOf(base.getProperty("aiwcorpo.mcp.platform.credential-type"));
-        assertThat(type).isEqualTo(SampleScope.CREDENTIAL_TYPE.wireName());
+        String type = SampleScope.CREDENTIAL_TYPE.wireName();
         String key = "aiwcorpo.mcp.platform.manifest.accepted-credential-types";
-        assertThat(String.valueOf(base.getProperty(key))).contains(type);
-        assertThat(String.valueOf(dev.getProperty(key))).contains(type);
+        assertThat(base.containsProperty("aiwcorpo.mcp.platform.credential-type")).as("removed in beta-7").isFalse();
+        assertThat(String.valueOf(base.getProperty(key))).as("the default type is the first").contains(":" + type);
+        assertThat(String.valueOf(dev.getProperty(key))).startsWith(type);
     }
 
     @Test

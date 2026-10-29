@@ -16,6 +16,7 @@ import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import pl.aiwcorpo.mcp.example.core.domain.ExampleResourceModel;
 import pl.aiwcorpo.mcp.example.core.port.out.ExampleResourcePort;
+import pl.aiwcorpo.mcp.platform.security.BackendCredential;
 import pl.aiwcorpo.mcp.platform.security.CredentialRequiredException;
 
 /**
@@ -33,6 +34,19 @@ class GetRecordToolTest extends ServerTestSupport {
     @BeforeEach
     void resetBackend() {
         BACKEND.reset();
+    }
+
+    @Test
+    void aCredentialOfATypeTheServerDoesNotAcceptIsRefusedBeforeTheBackend() {
+        BackendCredential.Type foreign = SampleScope.CREDENTIAL_TYPE == BackendCredential.Type.SERVICE_ACCOUNT
+                ? BackendCredential.Type.USER_SECRET : BackendCredential.Type.SERVICE_ACCOUNT;
+        try (McpSyncClient client = clientWithToken(ServerTestSupport::reader, PAT, foreign)) {
+            McpSchema.CallToolResult result = call(client, "get_record", Map.of("recordId", StubBackend.OPEN_1));
+
+            assertThat(result.isError()).isTrue();
+            assertThat(text(result)).contains("\"error\":\"internal_error\"");
+            assertThat(BACKEND.authorizations()).isEmpty();
+        }
     }
 
     @Test

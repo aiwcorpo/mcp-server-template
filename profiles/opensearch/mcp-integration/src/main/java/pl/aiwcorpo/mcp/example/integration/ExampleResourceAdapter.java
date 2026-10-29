@@ -28,6 +28,11 @@ public class ExampleResourceAdapter implements ExampleResourcePort {
             .map(parameter -> "&" + parameter.getKey() + "=" + parameter.getValue())
             .collect(Collectors.joining());
 
+    private static final String RESOLVE_PARAMETERS = QueryScope.OPENSEARCH_RESOLVE_PARAMETERS.entrySet().stream()
+            .sorted(Map.Entry.comparingByKey())
+            .map(parameter -> parameter.getKey() + "=" + parameter.getValue())
+            .collect(Collectors.joining("&", "?", ""));
+
     private final ExampleBackendClient backend;
 
     public ExampleResourceAdapter(ExampleBackendClient backend) {
@@ -65,7 +70,14 @@ public class ExampleResourceAdapter implements ExampleResourcePort {
     /** Patterns go here and nowhere else: a search names indices, so an alias that matches a pattern is never queried. */
     @Override
     public String resolveIndices(String expression) {
-        String answer = backend.get(String.class, "/_resolve/index/{expression}", expression);
+        String answer;
+        try {
+            answer = backend.get(String.class, "/_resolve/index/{expression}" + RESOLVE_PARAMETERS, expression);
+        } catch (HttpClientErrorException.NotFound noIndex) {
+            // The plain name of the pair "p,p-*" need not exist; a 404 means no index matches (not confirmed on a
+            // live cluster, so the answer is not cached and every search resolves again).
+            return QueryScope.EMPTY_RESOLVE_RESPONSE;
+        }
         if (answer == null) {
             throw new BackendResponseException("empty body");
         }

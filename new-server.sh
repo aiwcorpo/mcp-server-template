@@ -131,19 +131,18 @@ if [[ "$trial" == false ]]; then
         "$target/mcp-app/src/test/java/pl/aiwcorpo/mcp/$system/app/ServerTestSupport.java"
 fi
 
-# The credential type is the system's configuration in the gateway and the broker (Cedar sees it as
-# context.credentialType): GitLab resolves OAuth tokens (a PAT is accepted too), Service Desk uses the account of the
+# Accepted credential types, default first (it becomes context.credentialType in Cedar): the system's configuration in
+# the gateway and the broker. GitLab resolves OAuth tokens (a PAT is accepted too), Service Desk uses the account of the
 # service, OpenSearch exchanges the user's token, Jira and Confluence use the user's own secret.
 if [[ "$trial" == false ]]; then
     case "$system" in
-        gitlab) credential_type=user-oauth; accepted_types=user-oauth,user-secret ;;
-        servicedesk) credential_type=service-account; accepted_types=service-account ;;
-        opensearch) credential_type=token-exchange; accepted_types=token-exchange ;;
-        *) credential_type=user-secret; accepted_types=user-secret ;;
+        gitlab) accepted_types=user-oauth,user-secret ;;
+        servicedesk) accepted_types=service-account ;;
+        opensearch) accepted_types=token-exchange ;;
+        *) accepted_types=user-secret ;;
     esac
     resources="$target/mcp-app/src/main/resources"
-    perl -pi -e "s/^(\\s*credential-type: ).*/\${1}$credential_type/; s/(accepted-credential-types: .*:)user-secret\\}/\${1}$accepted_types}/" \
-        "$resources/application.yml"
+    perl -pi -e "s/(accepted-credential-types: .*:)user-secret\\}/\${1}$accepted_types}/" "$resources/application.yml"
     perl -pi -e "s/(accepted-credential-types: )user-secret\$/\${1}$accepted_types/" "$resources/application-dev.yml"
 fi
 

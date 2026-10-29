@@ -61,6 +61,27 @@ class IndexResolutionTest extends ServerTestSupport {
     }
 
     @Test
+    void aResolutionThatAnswers404MeansNoIndexAndNoSearch() {
+        BACKEND.resolveAnswersNotFound(true);
+        try (McpSyncClient client = clientWithCredential(PAT)) {
+            McpSchema.CallToolResult result = call(client, "search_records", search(SampleScope.OPEN_PROJECT));
+
+            assertThat(result.isError()).isFalse();
+            assertThat(text(result)).contains("\"hits\":[]");
+            assertThat(BACKEND.indexSearches()).isEmpty();
+        }
+    }
+
+    @Test
+    void theResolutionAsksForOpenIndicesOnly() {
+        try (McpSyncClient client = clientWithCredential(PAT)) {
+            call(client, "search_records", search(SampleScope.OPEN_PROJECT));
+
+            assertThat(BACKEND.resolutionQueries()).singleElement().asString().contains("expand_wildcards=open");
+        }
+    }
+
+    @Test
     void aLinkOnAnotherPrefixLeavesNothingToAskFor() {
         try (McpSyncClient client = clientWithToken(user -> {
             reader(user);

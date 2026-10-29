@@ -101,7 +101,7 @@ template'u (`ExampleResourceDescription`); wektory kontraktów: `server-gitlab-*
   Nie przyjmuj od modelu tekstu JQL ani CQL (`restrictJql` nie istnieje od beta-2): jeśli produkt wymaga języka zapytań
   od modelu, nie przechodzi przez starter. OpenSearch: `scope.nothingToQuery()` (pusty wynik bez
   wywołania systemu), wzorce `scope.opensearchIndexExpression()` tylko do `GET _resolve/index/`, potem
-  `scope.resolveIndexNames(odpowiedz)`: zapytanie, `_count` i agregacje idą do listy nazw z
+  `scope.opensearchSearchTarget(odpowiedz)` (puste = nie pytaj; samo `String.join` pustej listy przeszukałoby wszystkie indeksy): zapytanie, `_count` i agregacje idą do listy nazw z
   `QueryScope.OPENSEARCH_SEARCH_PARAMETERS`, nigdy do wzorca (`p-*` obejmuje też alias wskazujący indeksy innego zespołu).
   Narzędzie z indeksem jako argumentem woła `scope.resolveIndexArgument(argument, odpowiedz)` (`invalid_argument` dla
   wzorca, listy, `_all` i nazwy z kropką; alias, indeks poza zakresem i nieznany to `not_found_or_denied`). Wzór:

@@ -34,13 +34,20 @@ final class SampleScope {
      */
     static final boolean ONLY_GRANTED_PROJECTS = false;
 
+    /**
+     * Whether the container of the unclassified record lies outside every scope of the caller, so that the record is
+     * {@code not_found_or_denied} before its missing classification matters (Confluence space, Service Desk queue:
+     * a record the caller's scopes do not cover and the policy cannot judge is hidden, not an internal error).
+     */
+    static final boolean UNCLASSIFIED_OUTSIDE_SCOPE = true;
+
     /** Groups of the test caller besides the read group: grants the policy needs to read anything (OpenSearch). */
-    static final List<String> EXTRA_GROUPS = List.of();
+    static final List<String> EXTRA_GROUPS = List.of("mcp-confluence-space-ENG");
 
     /** Whether the server hands the narrowing of a link to the system inside the query (JQL, CQL) instead of checking it itself. */
     static final boolean QUERY_CARRIES_LINK = true;
 
-    static final String OPEN_PROJECT = "ABC";
+    static final String OPEN_PROJECT = "ENG";
     static final String OTHER_PROJECT = "DEF";
     static final String RESTRICTED_PROJECT = "HR";
     static final String UNCLASSIFIED_PROJECT = "NOC";

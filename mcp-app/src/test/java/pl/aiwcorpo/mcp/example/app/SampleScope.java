@@ -34,6 +34,13 @@ final class SampleScope {
      */
     static final boolean ONLY_GRANTED_PROJECTS = false;
 
+    /**
+     * Whether the container of the unclassified record lies outside every scope of the caller, so that the record is
+     * {@code not_found_or_denied} before its missing classification matters (Confluence space, Service Desk queue:
+     * a record the caller's scopes do not cover and the policy cannot judge is hidden, not an internal error).
+     */
+    static final boolean UNCLASSIFIED_OUTSIDE_SCOPE = false;
+
     /** Groups of the test caller besides the read group: grants the policy needs to read anything (OpenSearch). */
     static final List<String> EXTRA_GROUPS = List.of();
 

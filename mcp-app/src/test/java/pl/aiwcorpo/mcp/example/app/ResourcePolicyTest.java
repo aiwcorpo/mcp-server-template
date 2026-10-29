@@ -52,7 +52,7 @@ class ResourcePolicyTest extends ServerTestSupport {
         try (McpSyncClient client = clientWithCredential(PAT)) {
             McpSchema.CallToolResult result = call(client, "get_record", Map.of("recordId", StubBackend.UNCLASSIFIED));
 
-            if (SampleScope.ONLY_GRANTED_PROJECTS) {
+            if (SampleScope.UNCLASSIFIED_OUTSIDE_SCOPE) {
                 assertThat(result.isError()).as("no grant on this container: the same answer as for a missing record").isTrue();
                 assertThat(text(result)).contains(NOT_FOUND_OR_DENIED);
             } else if (SampleScope.UNKNOWN_CLASSIFICATION_REFUSED) {

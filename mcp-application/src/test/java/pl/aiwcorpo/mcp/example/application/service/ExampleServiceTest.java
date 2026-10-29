@@ -18,18 +18,18 @@ class ExampleServiceTest {
             public List<ExampleRecordHit> search(String query, int limit) {
                 seen[0] = query;
                 seen[1] = String.valueOf(limit);
-                return List.of(new ExampleRecordHit("ABC-1", "First"));
+                return List.of(new ExampleRecordHit("ABC-1", "ABC", "First"));
             }
         });
 
-        assertThat(service.searchRecords("q")).containsExactly(new ExampleRecordHit("ABC-1", "First"));
+        assertThat(service.searchRecords("q", "ABC")).containsExactly(new ExampleRecordHit("ABC-1", "ABC", "First"));
         assertThat(seen).containsExactly("q", String.valueOf(ExampleUseCase.MAX_HITS));
     }
 
     @Test
     void cutsAnAnswerLongerThanTheLimitWhateverTheBackendDid() {
         List<ExampleRecordHit> many = IntStream.range(0, ExampleUseCase.MAX_HITS + 10)
-                .mapToObj(i -> new ExampleRecordHit("ABC-" + i, "t")).toList();
+                .mapToObj(i -> new ExampleRecordHit("ABC-" + i, "ABC", "t")).toList();
         ExampleService service = new ExampleService(new StubPort() {
             @Override
             public List<ExampleRecordHit> search(String query, int limit) {
@@ -37,7 +37,20 @@ class ExampleServiceTest {
             }
         });
 
-        assertThat(service.searchRecords("q")).hasSize(ExampleUseCase.MAX_HITS);
+        assertThat(service.searchRecords("q", "ABC")).hasSize(ExampleUseCase.MAX_HITS);
+    }
+
+    @Test
+    void keepsOnlyTheRowsOfTheRequestedProject() {
+        ExampleService service = new ExampleService(new StubPort() {
+            @Override
+            public List<ExampleRecordHit> search(String query, int limit) {
+                return List.of(new ExampleRecordHit("ABC-1", "ABC", "a"), new ExampleRecordHit("DEF-1", "DEF", "b"),
+                        new ExampleRecordHit("XYZ-1", null, "no project"));
+            }
+        });
+
+        assertThat(service.searchRecords("q", "ABC")).extracting(ExampleRecordHit::id).containsExactly("ABC-1");
     }
 
     private abstract static class StubPort implements pl.aiwcorpo.mcp.example.core.port.out.ExampleResourcePort {

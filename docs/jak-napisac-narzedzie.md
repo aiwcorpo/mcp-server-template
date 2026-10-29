@@ -82,20 +82,33 @@ template'u (`ExampleResourceDescription`); wektory kontraktów: `server-gitlab-*
   buduje zapytanie. Zakres jest argumentem obowiązkowym i nie ma globalnego wyszukiwania.
 - `policy.queryScope(typ)` (`ResourcePolicy` wstrzyknięte w konstruktorze) daje zawężenie z linku wirtualnego
   serwera (`linkIds()`) i zakresy z grup (`grantedIds()`, `grantsNothing()`). JQL i CQL buduje `StructuredQuery`: pola
-  z białej listy autora, operatory z zamkniętego zbioru, tylko `AND`, wartości zawsze w cudzysłowach i escapowane:
+  z list normatywnych kontraktu (CC-160; serwer może dopuścić mniej pól, nigdy więcej), operatory `EQUALS`, `CONTAINS`,
+  `NOT_EQUALS` z jedną wartością, tylko `AND`, wartości zawsze w cudzysłowach (znak sterujący jest odrzucany):
 
   ```java
-  String jql = scope.jql(Set.of("project", "text"))             // pola, po których wolno filtrować
-          .where("project", Operator.EQUALS, project)            // null albo pusta wartość = filtr pominięty
-          .where("text", Operator.CONTAINS, text)                // tekst literalny, znaki specjalne escapowane
-          .build();                                              // project in ("ABC") AND project = "ABC" AND text ~ "..."
+  String jql = scope.jql(Set.of("text", "status"))              // pola z JQL: text, status, assignee, summary
+          .where("status", Operator.EQUALS, status)              // null = filtr pominięty
+          .where("text", Operator.CONTAINS, text)                // tekst literalny
+          .orderBy("updated", Direction.DESC)                    // created, updated, priority, key (jedno ORDER BY)
+          .build();                                              // (status = "Open" AND text ~ "...") AND project in ("ABC") ORDER BY updated DESC
   ```
 
+  CQL: warunki `text`, `title`, `label`, `ORDER BY` `created`, `lastmodified`, `title`. Filtra po liście wartości ani po
+  polu spoza list nie ma; zakres (projekt, przestrzeń) nie jest polem warunku, więc zakres żądany przez model
+  zawęża wiersze po odpowiedzi systemu (`ExampleService`), a link wirtualnego serwera dokleja starter. Zmiana list wymaga
+  zmiany kontraktu.
+
   Nie przyjmuj od modelu tekstu JQL ani CQL (`restrictJql` nie istnieje od beta-2): jeśli produkt wymaga języka zapytań
-  od modelu, nie przechodzi przez starter. OpenSearch: `scope.nothingToQuery()` i `scope.opensearchIndexExpression()`
-  plus `QueryScope.OPENSEARCH_SEARCH_PARAMETERS`. Gdzie system sam stosuje prawa
-  użytkownika (Jira, Confluence, GitLab z jego tokenem), wystarcza link; gdzie nie (OpenSearch, konto serwisowe),
-  zapytanie ogranicza się do `grantedIds()`, a **puste `grantsNothing()` oznacza: nie wykonuj zapytania**. Wyszukiwanie
+  od modelu, nie przechodzi przez starter. OpenSearch: `scope.nothingToQuery()` (pusty wynik bez
+  wywołania systemu), wzorce `scope.opensearchIndexExpression()` tylko do `GET _resolve/index/`, potem
+  `scope.resolveIndexNames(odpowiedz)`: zapytanie, `_count` i agregacje idą do listy nazw z
+  `QueryScope.OPENSEARCH_SEARCH_PARAMETERS`, nigdy do wzorca (`p-*` obejmuje też alias wskazujący indeksy innego zespołu).
+  Narzędzie z indeksem jako argumentem woła `scope.resolveIndexArgument(argument, odpowiedz)` (`invalid_argument` dla
+  wzorca, listy, `_all` i nazwy z kropką; alias, indeks poza zakresem i nieznany to `not_found_or_denied`). Wzór:
+  profil `opensearch` (`ExampleSearchQuery.indices`, `ExampleResourceAdapter.resolveIndices`). Gdzie system sam stosuje prawa
+  użytkownika (Jira, Confluence, GitLab z jego tokenem), wystarcza link; gdzie nie (OpenSearch, konto serwisowe Service Desku),
+  zapytanie ogranicza się do `grantedIds()` (kolejki konta serwisowego wynikają wyłącznie z paczki polityk, nie z
+  konfiguracji serwera), a **puste `grantsNothing()` oznacza: nie wykonuj zapytania**. Wyszukiwanie
   poza linkiem to pusty wynik, nie błąd: błąd mówiłby, jakie zakresy istnieją. Wzór: `ExampleTool.searchRecords`.
   Wartości od modelu wchodzą do zapytania wyłącznie przez `StructuredQuery`, cytowane identyfikatory
   (`QueryScope.quote`) albo zmienne szablonu URI, nigdy sklejane. Miejsce w kodzie: `ExampleSearchQuery`.

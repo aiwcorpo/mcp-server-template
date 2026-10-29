@@ -4,9 +4,79 @@ M1: osiągnięty (2026-10-27) - template na starterze 3.0.0-alpha-10, `get_recor
 
 M3: osiągnięty (2026-10-28) - template na starterze 3.0.0-beta-4 (kontrakty 3.1.0; przestawiony z beta-1, beta-2 i beta-3, patrz niżej): `@ToolTitle`, zamknięte schematy z `contractPattern`, `get_record` z `@ResourceRef` i `ResourceResolver`, `search_records` z `QueryScope` i `ResultFilter`, `policy.*` i `manifest.*` (dev i prod), `GET /mcp-manifest` zgodny z `tools/list`, `DevProfileLoopbackTest` z `assertServerIsGuarded`; `new-server.sh` generuje serwery jira, gitlab, confluence, servicedesk, opensearch i `--trial demo`, każdy buduje się i przechodzi `verify` (62 testy).
 
-Starter: BOM `pl.aiwcorpo.mcp:mcp-platform-bom:3.0.0-beta-4` (kontrakty 3.1.0, Spring Boot 4.1.0, Spring AI
+M4 (2026-10-29): template i generator na starterze 3.0.0-beta-6 (kontrakty 4.0.0). Kamienie: (1) pom, `credential-type`, nowe API `StructuredQuery`, stały
+tekst `not_found_or_denied`; (2) profil Service Desk bez trybu `serverConfiguredQueues`, grant kolejek tylko z paczki polityk; (3) profil OpenSearch
+z rozwijaniem wzorców do nazw indeksów; (4) dokumentacja stosu dev i luki z smoke beta-5. Wszystkie cztery zrobione (sekcja "M4" niżej).
+
+Starter (stan sprzed M4): BOM `pl.aiwcorpo.mcp:mcp-platform-bom:3.0.0-beta-4` (kontrakty 3.1.0, Spring Boot 4.1.0, Spring AI
 2.0.0, Java 25). Commity: 7f65f8f (M1), c799e54, c1258c4, 83b9f3c (alpha-10), 00f87f4, 80603f4 (alpha-11), następnie M3
 (patrz `git log`). Wyszukiwanie nie przyjmuje od modelu JQL/CQL: `ExampleSearchQuery` buduje zapytanie przez `StructuredQuery`.
+
+## M4: beta-5 -> beta-6, kontrakty 4.0.0 (2026-10-29)
+
+Wg MIGRATION "Z beta-5 na beta-6". Testy: template 68 (`./mvnw clean verify`: mcp-app 62, mcp-application 3, mcp-tools 3), z czego 9 pominiętych
+(8 `ManifestTest` oraz `theLinkTravelsInsideTheQueryWhereTheSystemHasAQueryLanguage`, które wymaga `QUERY_CARRIES_LINK`), czyli 59 wykonanych.
+Pominięcie `ManifestTest` jest zamierzone: `serverId` manifestu to enum kontraktów, a template (`example`) i serwer próbny (`demo`) nim nie są;
+testy wykonują się w każdym serwerze wygenerowanym dla systemu z `SystemId`. `tests/new-server-test.sh --build`: 0 błędów, `verify` zielone dla
+jira, confluence, gitlab, servicedesk, opensearch i `--trial demo`. Serwer OpenSearch ma dodatkowo `IndexResolutionTest` (5 testów).
+
+Zmiany w template'cie i generatorze:
+
+1. `pom.xml`: `mcp-platform.version` 3.0.0-beta-6 (właściwość; `new-server.sh` czyta wersję z niej).
+2. `credential-type` w `application.yml`; `new-server.sh` ustawia je i `accepted-credential-types` (baza i `dev`) per system: jira, confluence
+   `user-secret`; gitlab `user-oauth` (przyjmuje też `user-secret`); servicedesk `service-account`; opensearch `token-exchange`. Testy:
+   `SampleScope.CREDENTIAL_TYPE` jest typem w `serverProperties` (nadpisanie `credential-type` i `accepted-credential-types`) i w
+   `asGateway(..., typ)`; `ProductionConfigurationTest` pilnuje zgodności yml z tym typem.
+3. `StructuredQuery`: Jira `scope.jql(Set.of("text"))` z `text CONTAINS`, Confluence `scope.cql(Set.of("title"))`. `project` i `space` nie są polami warunku
+   (lista normatywna), więc `ExampleService.searchRecords(query, project)` zawęża wiersze do żądanego zakresu po odpowiedzi; `ExampleRecordHit` ma `project`.
+   Wiersz bez projektu jest odrzucany. Kolejność w zapytaniu: `(warunki) AND project in (...)`.
+4. `not_found_or_denied`: żadnego własnego tekstu w serwerze nie było; `ResourcePolicyTest` sprawdza stałą `ToolErrorCode.NOT_FOUND_OR_DENIED_MESSAGE`.
+5. Service Desk: w template'cie nie było `serverConfiguredQueues` ani `MCP_SERVICEDESK_ALLOWED_QUEUES`. Profil pyta o kolejkę tylko wtedy, gdy
+   `nothingToQuery()` jest fałszem, a kolejka jest w `grantedIds()` i w linku. Testy servicedesk używają kolejki `42` (jedyna, którą przykładowa paczka
+   kontraktów przyznaje grupą `mcp-servicedesk-queue-42`) i `ONLY_GRANTED_PROJECTS`: rekord w kolejce bez grantu to `not_found_or_denied`, wyszukiwanie
+   w niej nie woła systemu.
+6. OpenSearch: `ExampleSearchQuery.indices` (nothingToQuery, `_resolve/index` z `opensearchIndexExpression`, `resolveIndexNames`, zawężenie do żądanego
+   prefiksu); port `resolveIndices` i `search(indices, text, limit)`; wyszukiwanie dostaje listę nazw i `OPENSEARCH_SEARCH_PARAMETERS`, tekst jako
+   `QueryScope.quote`. `resolveIndexArgument` jest opisane (narzędzia z indeksem jako argumentem), template nie ma takiego narzędzia.
+7. Adapter rozdzielony: `ExampleBackendClient` (poświadczenie, timeouty, przekierowania, limit odpowiedzi, mapowanie błędów) i `ExampleResourceAdapter`
+   (ścieżki i DTO). Dzięki temu profil OpenSearch podmienia tylko adapter.
+8. Manifest: testy zapisują `mcp-app/target/mcp-manifest.json` (`manifest.output-file`, artefakt dla rejestracji), `ManifestTest` sprawdza zgodność pliku
+   z odpowiedzią i brak `environment` poza `devstack` (`environment: dev` dodaje starter w profilu `devstack`).
+9. `new-server.sh` dodaje pliki profilu bez odpowiednika w template'cie (`IndexResolutionTest`).
+10. README: wersje, właściwość `mcp-platform.version`, `credential-type`, lista zmiennych w "Uruchomienie w stosie dev" (`MCP_TLS_KEYSTORE`,
+    `MCP_TLS_TRUSTSTORE`, `MCP_TLS_STORE_PASSWORD`, `MCP_INTERNAL_URL`, `MCP_GATEWAY_JWKS_URI`, `MCP_CONNECT_URL`), klucze `dev-`, system musi być
+    `SystemId` (`example` działa tylko jako próbny), wyjaśnienie pominiętych `ManifestTest`.
+
+Do przeniesienia przez ws-04 (każdy serwer; pozostałe pliki serwera zostają):
+
+- Wszystkie: `pom.xml` na 3.0.0-beta-6 (`mcp-platform.version` albo wersja w imporcie BOM); `credential-type` w `application.yml` (jeden typ w
+  `accepted-credential-types` wystarczy bez niego, kilka typów wymaga go jawnie); testy z `asGateway(user, credential, typ)` i nadpisaniem
+  `credential-type`; zapytania z nowego API (poniżej); testy odmowy ze stałą `NOT_FOUND_OR_DENIED_MESSAGE`; test, który oczekiwał
+  `internal_error` dla zasobu bez klasyfikacji, woła użytkownikiem z grantem (bez grantu: `not_found_or_denied` przed resolverem); licznik
+  `mcp_audit_authentication_suppressed_total` zastępuje `mcp_server_audit_authentication_suppressed_total` w alertach; `manifest.output-file`
+  w teście lub w kroku budowy jako artefakt do rejestracji (certyfikat CI `mcp-registry-ci-<serverId>`); `README`: starter beta-6, kontrakty 4.0.0.
+- Jira: `scope.jql(Set.of("text", "status", "assignee", "summary" - tylko użyte))`, bez `project` jako warunku; `IN`/`NOT_IN`/zakresy dat/pola
+  `labels`, `created`, `cf[...]` znikają (jedna wartość, `EQUALS`/`CONTAINS`/`NOT_EQUALS`); `ORDER BY` z `created`, `updated`, `priority`, `key`;
+  zawężenie do żądanego projektu po odpowiedzi (`hit.project`), bo JQL nie ma `project` w polach. `credential-type: user-secret`.
+- Confluence: `scope.cql(Set.of("text", "title", "label" - tylko użyte))`, `ORDER BY` z `created`, `lastmodified`, `title`; przestrzeń jako filtr wierszy.
+  `credential-type: user-secret` (broker stosu ma tylko `user-secret`).
+- GitLab: `credential-type: user-oauth`, `accepted-credential-types: [user-oauth, user-secret]`; adapter dla obu typów (OAuth `Authorization: Bearer`
+  przez `applyTo`, PAT `PRIVATE-TOKEN` przez `value()` zależnie od `credential.type()`); brak budowniczego zapytań w starterze, więc zmiana tylko w
+  testach i typie.
+- Service Desk: `credential-type: service-account`; usunąć `MCP_SERVICEDESK_ALLOWED_QUEUES`, `serverConfiguredQueues` i wszelką ścieżkę, w której
+  konfiguracja serwera otwiera kolejkę (dostęp tylko z grantów w paczce: `grantedIds()`, `nothingToQuery()`); kolejka poza zakresem linku w
+  argumencie to `not_found_or_denied`, nie `access_denied` (adapter i test); wyszukiwanie i listy pytają tylko o kolejki z `grantedIds()` i z linku;
+  testy z grupą `mcp-servicedesk-queue-<id>` przyznającą kolejkę (w paczce kontraktów jest tylko `42`).
+- OpenSearch: `credential-type: token-exchange` i `accepted-credential-types: [token-exchange]` (rejestracja z samym `user-secret` jest odrzucana);
+  nigdzie wzorzec `p-*` w ścieżce wyszukiwania, `_count` ani agregacji: `GET _resolve/index/<opensearchIndexExpression()>`, `resolveIndexNames`
+  (bez aliasów i strumieni), pytanie do `String.join(",", nazwy)` z `OPENSEARCH_SEARCH_PARAMETERS`; indeks z argumentu przez `resolveIndexArgument`;
+  `requireNoAliases` usunąć (przestarzałe), `aggregate_logs` może wrócić po wdrożeniu tego (ws-09 zdejmuje wtedy regułę wyłączającą);
+  `@ArgumentLimits(contractPattern = "OpenSearchIndexPrefix")` bez obejścia; `expiresAt` tokenu zawsze podany, więc nie cache'ować dłużej.
+- Stos dev: `SPRING_PROFILES_ACTIVE=devstack` z dwiema zgodami i `allow-test-keys` dla kluczy `dev-` (manifest ma wtedy `environment: dev`).
+
+Propozycje CC: (a) `project`/`space` jako pole warunku JQL/CQL (dziś `search_records(project, text)` musi filtrować wiersze po odpowiedzi systemu, a limit
+wyników liczy wiersze wszystkich projektów użytkownika); (b) w pakiecie testowym `TestGateway` więcej grup kolejek Service Desku niż `42`, żeby testy
+wielu kolejek konta serwisowego nie wymagały własnej paczki. Poza tym brak.
 
 ## Z beta-1 na beta-2 (2026-10-28)
 

@@ -38,13 +38,18 @@ import java.util.regex.Pattern;
  *   <li>{@link #SLOW}: answers after {@link #SLOW_MILLIS}; {@link #HUGE}: 200 with a body of {@link #HUGE_BYTES};</li>
  *   <li>anything else: 404.</li>
  * </ul>
- * The search of a project returns its own records and, as a backend with links between records does, records of other
- * projects. Any request with {@link #EXPIRED_CREDENTIAL} is answered 401, like a revoked token.
+ * A search returns every row that matches its text and the narrowing of a link in the query, whatever the project: the
+ * requested project is not a condition of the query (the contracts do not allow it), the server narrows the rows. Only
+ * a query that names a project (the systems without a query builder) is answered for that project. A search with
+ * {@code indices} (OpenSearch) is answered for those index names only, and {@code /_resolve/index/} lists the
+ * indices and the alias the expression matches. Any request with {@link #EXPIRED_CREDENTIAL} is answered 401, like a revoked token.
  */
 final class StubBackend {
 
     static final String EXPIRED_CREDENTIAL = "Bearer expired-pat-of-jkowalski";
     static final String BODY_MARKER = "SECRETBODYTOKEN123";
+    /** A search for this text makes the backend fail. */
+    static final String FAILING_TEXT = "backend-fails";
     static final long SLOW_MILLIS = 4_000;
     static final int HUGE_BYTES = 256 * 1024;
 
@@ -64,6 +69,8 @@ final class StubBackend {
     static final String REDIRECT = SampleScope.id(SampleScope.OPEN_PROJECT, 907);
     static final String SLOW = SampleScope.id(SampleScope.OPEN_PROJECT, 908);
     static final String HUGE = SampleScope.id(SampleScope.OPEN_PROJECT, 909);
+    /** An alias an administrator could create: named like an index of the open project, pointing at another team's. */
+    static final String ALIAS = SampleScope.OPEN_PROJECT + "-all";
     static final String MISSING = SampleScope.id(SampleScope.OPEN_PROJECT, 404);
 
     private static final String RECORDS = "/api/records/";
@@ -74,6 +81,8 @@ final class StubBackend {
     private final List<String> elsewhereHits = new CopyOnWriteArrayList<>();
     private final List<String> searches = new CopyOnWriteArrayList<>();
     private final List<String> batches = new CopyOnWriteArrayList<>();
+    private final List<String> indexSearches = new CopyOnWriteArrayList<>();
+    private final List<String> resolutions = new CopyOnWriteArrayList<>();
 
     private StubBackend(HttpServer server, HttpServer elsewhere) {
         this.server = server;
@@ -87,6 +96,7 @@ final class StubBackend {
             StubBackend backend = new StubBackend(server, elsewhere);
             server.createContext(RECORDS, backend::handle);
             server.createContext("/api/records", backend::search);
+            server.createContext("/_resolve/index/", backend::resolveIndex);
             elsewhere.createContext("/", exchange -> {
                 backend.elsewhereHits.add(String.valueOf(exchange.getRequestHeaders().getFirst("Authorization")));
                 respond(exchange, 200, record(REDIRECT, SampleScope.OPEN_PROJECT, "\"\"", "from elsewhere"));
@@ -125,7 +135,19 @@ final class StubBackend {
         return List.copyOf(batches);
     }
 
+    /** The searches by index names so far: {@code names?other parameters}. */
+    List<String> indexSearches() {
+        return List.copyOf(indexSearches);
+    }
+
+    /** The expressions of the {@code _resolve/index} calls so far. */
+    List<String> resolutions() {
+        return List.copyOf(resolutions);
+    }
+
     void reset() {
+        indexSearches.clear();
+        resolutions.clear();
         authorizations.clear();
         elsewhereHits.clear();
         searches.clear();
@@ -135,6 +157,7 @@ final class StubBackend {
     private static final Pattern REQUESTED = Pattern.compile("(?:project|space) = \"((?:[^\"\\\\]|\\\\.)*)\"");
     private static final Pattern LINKED = Pattern.compile("(?:project|space) in \\(([^)]*)\\)");
     private static final Pattern TEXT = Pattern.compile("(?:text|title) ~ \"((?:[^\"\\\\]|\\\\.)*)\"");
+    private static final Pattern LITERAL = Pattern.compile("\"((?:[^\"\\\\]|\\\\.)*)\"");
 
     /**
      * {@code ?ids=a,b}: the records among them that the stub keeps in one place (a batch for the resolver). Otherwise
@@ -163,27 +186,79 @@ final class StubBackend {
         }
         String query = parameters.getOrDefault("query", List.of("")).getFirst();
         searches.add(query);
+        boolean byIndices = parameters.containsKey("indices");
+        if (byIndices) {
+            indexSearches.add(parameters.get("indices").getFirst() + "?" + rawQueryWithoutText(exchange));
+        }
         Matcher requested = REQUESTED.matcher(query);
-        String project = requested.find() ? requested.group(1) : "";
-        Matcher text = TEXT.matcher(query);
+        String project = requested.find() ? requested.group(1) : null;
+        Matcher text = byIndices ? LITERAL.matcher(query) : TEXT.matcher(query);
         String needle = (text.find() ? text.group(1).replace("\\\"", "\"") : "").toLowerCase(Locale.ROOT);
-        if (SampleScope.FAIL_PROJECT.equals(project)) {
+        if (FAILING_TEXT.equals(needle)) {
             respond(exchange, 500, "{\"error\":\"boom\",\"seen\":\"" + authorization + "\"}");
             return;
         }
+        List<String> linkedProjects = null;
         Matcher linked = LINKED.matcher(query);
-        if (linked.find() && !List.of(linked.group(1).replace("\"", "").split("\\s*,\\s*")).contains(project)) {
-            respond(exchange, 200, "{\"records\":[]}");
-            return;
+        if (linked.find()) {
+            linkedProjects = List.of(linked.group(1).replace("\"", "").split("\\s*,\\s*"));
         }
+        List<String> indices = byIndices ? List.of(parameters.get("indices").getFirst().split(",")) : null;
         List<String> hits = new ArrayList<>();
-        for (String[] hit : SEARCH_ROWS) {
-            if (hit[0].equals(project) && hit[2].toLowerCase(Locale.ROOT).contains(needle)) {
-                hits.add("{\"id\":\"" + hit[1] + "\",\"title\":\"" + hit[2] + "\"}");
+        for (String[] row : SEARCH_ROWS) {
+            boolean inProject = project == null || project.equals(row[0]);
+            boolean inLink = linkedProjects == null || linkedProjects.contains(row[0]);
+            boolean inIndices = indices == null || indices.contains(row[1]);
+            if (inProject && inLink && inIndices && row[2].toLowerCase(Locale.ROOT).contains(needle)) {
+                hits.add("{\"id\":\"" + row[1] + "\",\"project\":\"" + row[0] + "\",\"title\":\"" + row[2] + "\"}");
             }
         }
         respond(exchange, 200, "{\"records\":[" + String.join(",", hits) + "],\"total\":" + hits.size() + "}");
     }
+
+    private static String rawQueryWithoutText(HttpExchange exchange) {
+        return String.join("&", java.util.Arrays.stream(exchange.getRequestURI().getRawQuery().split("&"))
+                .filter(pair -> !pair.startsWith("query=") && !pair.startsWith("indices=")).toList());
+    }
+
+    /**
+     * {@code GET _resolve/index/<expression>}: the indices the comma separated patterns match ({@code p} exactly,
+     * {@code p-*} by prefix) and an alias named like an index of the open project that points at another team's index,
+     * as an administrator could create it.
+     */
+    private void resolveIndex(HttpExchange exchange) throws IOException {
+        String authorization = exchange.getRequestHeaders().getFirst("Authorization");
+        authorizations.add(String.valueOf(authorization));
+        if (EXPIRED_CREDENTIAL.equals(authorization)) {
+            respond(exchange, 401, "{\"message\":\"token expired\"}");
+            return;
+        }
+        String expression = exchange.getRequestURI().getPath().substring("/_resolve/index/".length());
+        resolutions.add(expression);
+        List<String> patterns = List.of(expression.split(","));
+        List<String> names = new ArrayList<>(List.of(OPEN_1, OPEN_2, OTHER_7, RESTRICTED_5, MOVED, UNCLASSIFIED));
+        names.add(ALIAS);
+        List<String> indices = new ArrayList<>();
+        List<String> aliases = new ArrayList<>();
+        for (String name : names) {
+            boolean matches = patterns.stream().anyMatch(pattern -> pattern.endsWith("-*")
+                    ? name.startsWith(pattern.substring(0, pattern.length() - 1)) : name.equals(pattern));
+            if (matches) {
+                (ALIAS.equals(name) ? aliases : indices).add("{\"name\":\"" + name + "\"}");
+            }
+        }
+        respond(exchange, 200, "{\"indices\":[" + String.join(",", indices) + "],\"aliases\":[" + String.join(",", aliases)
+                + "],\"data_streams\":[]}");
+    }
+
+    /** Searched project (as the row reports it), id, title. The moved record is still listed under its old project. */
+    private static final String[][] SEARCH_ROWS = {
+            {SampleScope.OPEN_PROJECT, OPEN_1, "Quarterly report"},
+            {SampleScope.OPEN_PROJECT, OPEN_2, "Report archive"},
+            {SampleScope.OTHER_PROJECT, OTHER_7, "Report of the other team"},
+            {SampleScope.RESTRICTED_PROJECT, RESTRICTED_5, "Salary report"},
+            {SampleScope.OPEN_PROJECT, MOVED, "Payroll report moved away"},
+    };
 
     private static String batchRecord(String id) {
         if (OPEN_1.equals(id)) {
@@ -197,17 +272,6 @@ final class StubBackend {
         }
         return null;
     }
-
-    /** Searched project, id, title. Project ABC links to a record of DEF, to a restricted one and to a moved one. */
-    private static final String[][] SEARCH_ROWS = {
-            {SampleScope.OPEN_PROJECT, OPEN_1, "Quarterly report"},
-            {SampleScope.OPEN_PROJECT, OPEN_2, "Report archive"},
-            {SampleScope.OPEN_PROJECT, OTHER_7, "Report of the other team"},
-            {SampleScope.OPEN_PROJECT, RESTRICTED_5, "Salary report"},
-            {SampleScope.OPEN_PROJECT, MOVED, "Payroll report moved away"},
-            {SampleScope.OTHER_PROJECT, OTHER_7, "Report of the other team"},
-            {SampleScope.RESTRICTED_PROJECT, RESTRICTED_5, "Salary report"},
-    };
 
     private static Map<String, List<String>> parameters(String rawQuery) {
         Map<String, List<String>> parameters = new java.util.LinkedHashMap<>();

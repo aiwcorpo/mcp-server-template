@@ -75,6 +75,19 @@ class ManifestTest extends ServerTestSupport {
     }
 
     @Test
+    void theBuildArtifactIsTheManifestTheServerPublishes() throws Exception {
+        assertThat(JSON.readTree(java.nio.file.Files.readString(MANIFEST_FILE))).isEqualTo(manifest());
+    }
+
+    @Test
+    void theManifestOfAnotherProfileThanDevstackHasNoEnvironmentAndAcceptsOnlyTheCredentialTypeOfTheSystem() throws Exception {
+        JsonNode manifest = manifest();
+
+        assertThat(manifest.has("environment")).as("only the devstack profile publishes environment=dev (CC-138)").isFalse();
+        assertThat(manifest.at("/credential/acceptedTypes").toString()).contains(SampleScope.CREDENTIAL_TYPE.wireName());
+    }
+
+    @Test
     void theManifestPassesTheRulesOfTheGateway() throws Exception {
         JsonNode manifest = manifest();
 

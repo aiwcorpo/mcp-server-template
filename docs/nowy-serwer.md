@@ -26,24 +26,29 @@ wymaga `--trial` (małe litery i cyfry, nie `platform`, `audit`, słowa kluczowe
 przechodzi testy (oczekują `internal_error` zamiast `credential_required`) i działa w `dev` z ostrzeżeniem.
 Dla nazwy z listy skrypt ustawia `TRIAL_SYSTEM = false` w `ServerTestSupport`, a test `contractSystemIsKnown`
 pilnuje zgodności. Testy serwera próbnego i template'u działają na `mcp-<nazwa>` z paczką generowaną przez `TestGateway`;
-`ManifestTest` ich nie wykonuje, bo manifest serwera spoza `SystemId` jest odrzucany (patrz `docs/jak-napisac-narzedzie.md`).
+osiem testów `ManifestTest` jest tam pomijanych (`assumeFalse`), bo manifest serwera spoza `SystemId` jest odrzucany (patrz `docs/jak-napisac-narzedzie.md`).
 
 ### Profile systemów
 
 Template jest serwerem w kształcie Jiry (`Jira::Issue` w `Jira::Project`). Dla pozostałych systemów skrypt podmienia
-cztery pliki plikami z `profiles/<system>/` (ścieżki te same co w template'cie):
+pliki plikami z `profiles/<system>/` (ścieżki te same co w template'cie):
 
 | Plik | Co zmienia |
 | --- | --- |
 | `mcp-core/.../domain/ExampleResourceModel.java` | typ zasobu i kontenera, wzorce identyfikatorów z kontraktów (`contractPattern`), reguła zawężenia linkiem |
 | `mcp-integration/.../ExampleResourceDescription.java` | jak rekord jest opisany polityce: atrybuty wymagane przez schemat Cedar danego systemu (GitLab: `ancestorClassifications`) |
-| `mcp-tools/.../ExampleSearchQuery.java` | zapytanie wyszukiwania: JQL (Jira, template) i CQL (Confluence) przez `StructuredQuery`; reszta sprawdza zakres linku ręcznie |
+| `mcp-tools/.../ExampleSearchQuery.java` | zapytanie wyszukiwania: JQL (Jira, template) i CQL (Confluence) przez `StructuredQuery`; GitLab sprawdza link ręcznie, Service Desk także granty (`nothingToQuery`), OpenSearch rozwija wzorce do nazw indeksów |
 | `mcp-app/src/test/.../SampleScope.java` | kształt identyfikatorów w testach, klucz `vsc` linku, grupy odczytu (OpenSearch) |
 
 Profile: `gitlab` (`GitLab::Project` w `GitLab::Group`), `confluence` (`Confluence::Page` w `Confluence::Space`),
 `servicedesk` (`ServiceDesk::Ticket` w `ServiceDesk::Queue`, klasyfikacja kolejki opcjonalna), `opensearch`
 (`OpenSearch::Index` bez kontenera, tagi indeksu). `jira` i serwery próbne używają template'u bez podmiany. Każdy
 profil jest budowany i przechodzi `verify` (`tests/new-server-test.sh --build`).
+
+Pliki profilu bez odpowiednika w template'cie są dodawane (OpenSearch: `IndexResolutionTest`). OpenSearch podmienia
+ponadto port, przypadek użycia, serwis, adapter, narzędzie i test narzędzia (wyszukiwanie po nazwach indeksów). Skrypt
+ustawia też `credential-type` i `accepted-credential-types` w `application*.yml` (Jira i Confluence `user-secret`, GitLab
+`user-oauth`, Service Desk `service-account`, OpenSearch `token-exchange`).
 
 Ścieżka docelowa (także względna, liczona od bieżącego katalogu) nie może istnieć ani leżeć w template'ie.
 Kopiowane są tylko pliki śledzone przez git; przy błędzie katalog docelowy jest usuwany. Test skryptu:
@@ -66,7 +71,7 @@ Na końcu skrypt sprawdza, że w nowym projekcie nie zostało żadne `example`.
 
 1. Domena: zamienić `<System>Record` (`id`, `project`, `projectClassification`, `title`, `status`) na właściwe
    obiekty systemu (np. `JiraIssue`); tylko pola, które narzędzia oddają i których potrzebuje polityka.
-2. Adapter `<System>ResourceAdapter`: prawdziwe ścieżki API systemu zamiast `/api/records/...`, DTO odpowiedzi,
+2. Adapter `<System>ResourceAdapter` (poświadczenie, timeouty i błędy są w `<System>BackendClient`): prawdziwe ścieżki API systemu zamiast `/api/records/...`, DTO odpowiedzi,
    sposób podania poświadczenia (`credential::applyTo` dla `Authorization`; GitLab z `PRIVATE-TOKEN` przez
    `credential.value()`), mapowanie 404/403 -> pusty wynik, 401 -> `CredentialRequiredException`. Timeouty są w
    `<system>.backend.*`.

@@ -63,7 +63,8 @@ public class ExampleTool {
     /**
      * The model names the project and the text, never a query: {@link ExampleSearchQuery} builds the backend query
      * from them and from the {@link QueryScope} of the policy (the narrowing of the virtual server link, which
-     * {@code StructuredQuery} adds). The project is not a {@code @ResourceRef} on purpose, because a link that narrows
+     * {@code StructuredQuery} adds); the requested project narrows the rows afterwards (it is not a field a query may
+     * filter on). The project is not a {@code @ResourceRef} on purpose, because a link that narrows
      * the virtual server to other projects must give an empty search, not an error that tells which projects exist.
      * The hits are filtered afterwards by their {@code @ResourceRef} component, which also removes what the backend
      * returns beyond the project (linked records) and what the policy refuses (restricted).
@@ -82,7 +83,7 @@ public class ExampleTool {
         }
         QueryScope scope = policy.queryScope(ExampleResourceModel.PARENT_TYPE);
         return ExampleSearchQuery.of(scope, project, text)
-                .map(query -> ExampleSearchView.of(useCase.searchRecords(query)))
+                .map(query -> ExampleSearchView.of(useCase.searchRecords(query, project)))
                 .orElseGet(() -> new ExampleSearchView(List.of()));
     }
 }

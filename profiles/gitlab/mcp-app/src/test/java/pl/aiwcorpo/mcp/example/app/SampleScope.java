@@ -1,6 +1,7 @@
 package pl.aiwcorpo.mcp.example.app;
 
 import java.util.List;
+import pl.aiwcorpo.mcp.platform.security.BackendCredential;
 
 /**
  * What differs between the systems in the tests of the resource policy: how ids look (they must match the contract
@@ -20,11 +21,21 @@ final class SampleScope {
      */
     static final boolean UNKNOWN_CLASSIFICATION_REFUSED = true;
 
+    /**
+     * Type of the credential the gateway resolves for this system (the system's configuration in the gateway and the
+     * broker): the server's {@code credential-type}, the {@code X-MCP-Credential-Type} of test calls.
+     */
+    static final BackendCredential.Type CREDENTIAL_TYPE = BackendCredential.Type.USER_OAUTH;
+
+    /**
+     * Whether the system does not apply the user's rights (a service account sees everything), so that only what the
+     * groups of the caller grant can be read or searched: ServiceDesk. Records of other containers are then
+     * {@code not_found_or_denied}, and a search of one does not reach the system.
+     */
+    static final boolean ONLY_GRANTED_PROJECTS = false;
+
     /** Groups of the test caller besides the read group: grants the policy needs to read anything (OpenSearch). */
     static final List<String> EXTRA_GROUPS = List.of();
-
-    /** Searching this project makes the backend fail. */
-    static final String FAIL_PROJECT = "FAIL";
 
     /** Whether the server hands the narrowing of a link to the system inside the query (JQL, CQL) instead of checking it itself. */
     static final boolean QUERY_CARRIES_LINK = false;

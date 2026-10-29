@@ -15,7 +15,7 @@ import org.springframework.core.env.PropertySource;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.mock.env.MockEnvironment;
 import pl.aiwcorpo.mcp.example.integration.ExampleBackendProperties;
-import pl.aiwcorpo.mcp.example.integration.ExampleResourceAdapter;
+import pl.aiwcorpo.mcp.example.integration.ExampleBackendClient;
 
 /** What the production configuration must keep, checked without starting a server. */
 class ProductionConfigurationTest {
@@ -56,6 +56,20 @@ class ProductionConfigurationTest {
     }
 
     @Test
+    void theCredentialTypeIsSetAndAcceptedByTheManifestInEveryConfiguration() throws IOException {
+        PropertySource<?> base = new YamlPropertySourceLoader()
+                .load("application.yml", new ClassPathResource("application.yml")).getFirst();
+        PropertySource<?> dev = new YamlPropertySourceLoader()
+                .load("application-dev.yml", new ClassPathResource("application-dev.yml")).getFirst();
+
+        String type = String.valueOf(base.getProperty("aiwcorpo.mcp.platform.credential-type"));
+        assertThat(type).isEqualTo(SampleScope.CREDENTIAL_TYPE.wireName());
+        String key = "aiwcorpo.mcp.platform.manifest.accepted-credential-types";
+        assertThat(String.valueOf(base.getProperty(key))).contains(type);
+        assertThat(String.valueOf(dev.getProperty(key))).contains(type);
+    }
+
+    @Test
     void testKeysAndThePolicyRepositoryOfTheDevStackAreConfiguredInDevOnly() throws IOException {
         Map<String, Object> dev = (Map<String, Object>) new YamlPropertySourceLoader()
                 .load("application-dev.yml", new ClassPathResource("application-dev.yml")).getFirst().getSource();
@@ -70,7 +84,7 @@ class ProductionConfigurationTest {
                 .hasMessageContaining("https");
         assertThatCode(() -> adapter("https://backend.internal", environment())).doesNotThrowAnyException();
 
-        assertThatCode(() -> new ExampleResourceAdapter(
+        assertThatCode(() -> new ExampleBackendClient(
                 new ExampleBackendProperties("http://jira.internal:8080", null, null, null, null, true),
                 new DefaultListableBeanFactory().getBeanProvider(SslBundles.class), environment()))
                 .as("explicit opt-in for the dev environment's mocks").doesNotThrowAnyException();
@@ -91,8 +105,8 @@ class ProductionConfigurationTest {
         return new MockEnvironment().withProperty("aiwcorpo.mcp.platform.server-id", "mcp-example");
     }
 
-    private static ExampleResourceAdapter adapter(String baseUrl, MockEnvironment environment) {
-        return new ExampleResourceAdapter(new ExampleBackendProperties(baseUrl, null, null, null, null, false),
+    private static ExampleBackendClient adapter(String baseUrl, MockEnvironment environment) {
+        return new ExampleBackendClient(new ExampleBackendProperties(baseUrl, null, null, null, null, false),
                 new DefaultListableBeanFactory().getBeanProvider(SslBundles.class), environment);
     }
 }

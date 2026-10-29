@@ -37,13 +37,23 @@ class SearchRecordsToolTest extends ServerTestSupport {
     }
 
     @Test
-    void restrictedAndMovedRecordsReturnedByTheBackendAreRemovedFromTheList() {
+    void aRecordMovedToTheRestrictedProjectIsRemovedFromTheList() {
         try (McpSyncClient client = clientWithCredential(PAT)) {
             McpSchema.CallToolResult result = call(client, "search_records", search(SampleScope.OPEN_PROJECT, "report"));
 
             assertThat(result.isError()).isFalse();
-            assertThat(text(result)).as("a restricted record is linked in the search of the open project; another was moved to the restricted one")
-                    .doesNotContain(StubBackend.RESTRICTED_5, StubBackend.MOVED, "Salary", "Payroll");
+            assertThat(text(result)).as("the search index still lists the moved record under its old project")
+                    .doesNotContain(StubBackend.MOVED, "Payroll");
+        }
+    }
+
+    @Test
+    void aRestrictedProjectYieldsNoRecords() {
+        try (McpSyncClient client = clientWithCredential(PAT)) {
+            McpSchema.CallToolResult result = call(client, "search_records", search(SampleScope.RESTRICTED_PROJECT, "report"));
+
+            assertThat(result.isError()).isFalse();
+            assertThat(text(result)).doesNotContain(StubBackend.RESTRICTED_5, "Salary");
         }
     }
 
@@ -59,11 +69,16 @@ class SearchRecordsToolTest extends ServerTestSupport {
     }
 
     @Test
-    void withoutALinkTheRecordLinkedFromAnotherOpenProjectIsKept() {
+    void onlyTheRowsOfTheRequestedProjectAreReturned() {
         try (McpSyncClient client = clientWithCredential(PAT)) {
-            McpSchema.CallToolResult result = call(client, "search_records", search(SampleScope.OPEN_PROJECT, "report"));
+            String open = text(call(client, "search_records", search(SampleScope.OPEN_PROJECT, "report")));
+            String other = text(call(client, "search_records", search(SampleScope.OTHER_PROJECT, "report")));
 
-            assertThat(text(result)).contains(StubBackend.OTHER_7);
+            assertThat(open).doesNotContain(StubBackend.OTHER_7);
+            assertThat(other).doesNotContain(StubBackend.OPEN_1);
+            if (!SampleScope.ONLY_GRANTED_PROJECTS) {
+                assertThat(other).contains(StubBackend.OTHER_7);
+            }
         }
     }
 
@@ -106,6 +121,18 @@ class SearchRecordsToolTest extends ServerTestSupport {
     }
 
     @Test
+    void aContainerTheGroupsDoNotGrantIsNotSearchedWhereTheSystemIgnoresTheUsersRights() {
+        org.junit.jupiter.api.Assumptions.assumeTrue(SampleScope.ONLY_GRANTED_PROJECTS);
+        try (McpSyncClient client = clientWithCredential(PAT)) {
+            McpSchema.CallToolResult result = call(client, "search_records", search(SampleScope.OTHER_PROJECT, "report"));
+
+            assertThat(result.isError()).isFalse();
+            assertThat(text(result)).contains("\"hits\":[]");
+            assertThat(BACKEND.searches()).isEmpty();
+        }
+    }
+
+    @Test
     void theHitsAreResolvedWithOneBatchCall() {
         try (McpSyncClient client = clientWithCredential(PAT)) {
             call(client, "search_records", search(SampleScope.OPEN_PROJECT, "report"));
@@ -117,7 +144,7 @@ class SearchRecordsToolTest extends ServerTestSupport {
     @Test
     void theBackendGetsTheCredentialOfTheCaller() {
         try (McpSyncClient client = clientWithCredential(PAT)) {
-            call(client, "search_records", search(SampleScope.OTHER_PROJECT, "report"));
+            call(client, "search_records", search(SampleScope.OPEN_PROJECT, "report"));
 
             assertThat(BACKEND.authorizations()).isNotEmpty().containsOnly(PAT);
         }
@@ -154,7 +181,7 @@ class SearchRecordsToolTest extends ServerTestSupport {
     @Test
     void aFailingBackendIsNotAnEmptyResult() {
         try (McpSyncClient client = clientWithCredential(PAT)) {
-            McpSchema.CallToolResult result = call(client, "search_records", search(SampleScope.FAIL_PROJECT, "report"));
+            McpSchema.CallToolResult result = call(client, "search_records", search(SampleScope.OPEN_PROJECT, StubBackend.FAILING_TEXT));
 
             assertThat(result.isError()).isTrue();
             assertThat(text(result)).contains("\"error\":\"internal_error\"").doesNotContain("boom").doesNotContain("example-pat");

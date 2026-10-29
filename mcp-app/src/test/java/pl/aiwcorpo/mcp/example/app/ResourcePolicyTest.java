@@ -30,7 +30,9 @@ class ResourcePolicyTest extends ServerTestSupport {
             McpSchema.CallToolResult restricted = call(client, "get_record", Map.of("recordId", StubBackend.RESTRICTED_5));
 
             assertThat(restricted.isError()).isTrue();
-            assertThat(text(restricted)).contains(NOT_FOUND_OR_DENIED).isEqualTo(text(missing));
+            assertThat(text(restricted)).contains(NOT_FOUND_OR_DENIED).isEqualTo(text(missing))
+                    .as("one fixed text for every refusal, set by the starter")
+                    .contains(pl.aiwcorpo.mcp.platform.error.ToolErrorCode.NOT_FOUND_OR_DENIED_MESSAGE);
         }
     }
 
@@ -50,7 +52,10 @@ class ResourcePolicyTest extends ServerTestSupport {
         try (McpSyncClient client = clientWithCredential(PAT)) {
             McpSchema.CallToolResult result = call(client, "get_record", Map.of("recordId", StubBackend.UNCLASSIFIED));
 
-            if (SampleScope.UNKNOWN_CLASSIFICATION_REFUSED) {
+            if (SampleScope.ONLY_GRANTED_PROJECTS) {
+                assertThat(result.isError()).as("no grant on this container: the same answer as for a missing record").isTrue();
+                assertThat(text(result)).contains(NOT_FOUND_OR_DENIED);
+            } else if (SampleScope.UNKNOWN_CLASSIFICATION_REFUSED) {
                 // The attribute is required: a resource without it cannot be built, which the contract makes an
                 // internal_error (not a denial); nothing of the record reaches the client.
                 assertThat(result.isError()).isTrue();
@@ -79,7 +84,7 @@ class ResourcePolicyTest extends ServerTestSupport {
             McpSchema.CallToolResult inside = call(client, "get_record", Map.of("recordId", StubBackend.OTHER_7));
             McpSchema.CallToolResult outside = call(client, "get_record", Map.of("recordId", StubBackend.OPEN_1));
 
-            assertThat(inside.isError()).isFalse();
+            assertThat(inside.isError()).isEqualTo(SampleScope.ONLY_GRANTED_PROJECTS);
             assertThat(outside.isError()).isTrue();
             assertThat(text(outside)).contains(NOT_FOUND_OR_DENIED);
         }

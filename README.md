@@ -1,7 +1,7 @@
 # mcp-example: serwer MCP platformy
 
-Serwer MCP dla systemu `example`, zbudowany na `mcp-platform-starter` 3.0.0-beta-4 (Java 25, Spring Boot
-4.1.0, Spring AI 2.0.0, kontrakty `mcp-contracts` 3.1.0). Stoi wyłącznie za gateway'em platformy: przyjmuje
+Serwer MCP dla systemu `example`, zbudowany na `mcp-platform-starter` 3.0.0-beta-6 (Java 25, Spring Boot
+4.1.0, Spring AI 2.0.0, kontrakty `mcp-contracts` 4.0.0). Stoi wyłącznie za gateway'em platformy: przyjmuje
 ruch tylko po mTLS z wewnętrznym JWT gateway'a (C2), a do systemu docelowego woła z poświadczeniem
 użytkownika, które gateway dołącza do każdego żądania (C3). Bez poprawnego JWT odpowiada 401, nie ma trybu
 anonimowego.
@@ -18,6 +18,9 @@ export JAVA_HOME=/opt/homebrew/Cellar/openjdk@25/25.0.4.1/libexec/openjdk.jdk/Co
 ./mvnw verify                 # build, testy przez TestGateway i atrapę backendu; jar: mcp-app/target/mcp-example.jar
 ```
 
+Wersja startera to właściwość `mcp-platform.version` w `pom.xml` (importuje ją `mcp-platform-bom`, który przypina też
+kontrakty 4.0.0); `new-server.sh` czyta wersję z tej właściwości, więc podbicie robi się w jednym miejscu.
+
 Testy nie potrzebują Dockera ani środowiska `mcp-platform-dev`: `TestGateway` z `mcp-platform-test` wystawia
 JWKS z kluczy testowych kontraktów i podpisuje wewnętrzne JWT, a `StubBackend` (test) udaje API systemu.
 
@@ -27,7 +30,7 @@ JWKS z kluczy testowych kontraktów i podpisuje wewnętrzne JWT, a `StubBackend`
 | --- | --- | --- |
 | `mcp-core` | domena i porty, czysta Java | `ExampleRecord`, `ExampleRecordHit`, `ExampleResourceModel` (typy zasobów polityki, wzorce identyfikatorów z kontraktów), port wejściowy `ExampleUseCase`, port wyjściowy `ExampleResourcePort` |
 | `mcp-application` | przypadki użycia (bez Springa) | `ExampleService` |
-| `mcp-integration` | adaptery wyjściowe do systemu | `ExampleResourceAdapter` (REST, poświadczenie z C3, timeouty, bez przekierowań, `https` poza `dev`), `BoundedBodyInterceptor` (limit rozmiaru odpowiedzi), `BackendResponseException` (odpowiedź bez treści w komunikacie), `ExampleBackendProperties`, `ExampleRecordResolver` (`ResourceResolver`: rekord z systemu poświadczeniem wywołującego), `ExampleRecordResolver` także z `fetchAll` (jedno wywołanie na hity wyszukiwania), `ExampleResourceDescription` (rekord jako zasób polityki: id, rodzic i klasyfikacja z odpowiedzi systemu) |
+| `mcp-integration` | adaptery wyjściowe do systemu | `ExampleBackendClient` (REST, poświadczenie z C3 dowolnego typu, timeouty, bez przekierowań, `https` poza `dev`, mapowanie błędów), `ExampleResourceAdapter` (ścieżki i odpowiedzi API, 404 i 403 jako "nie widać"), `BoundedBodyInterceptor` (limit rozmiaru odpowiedzi), `BackendResponseException` (odpowiedź bez treści w komunikacie), `ExampleBackendProperties`, `ExampleRecordResolver` (`ResourceResolver`: rekord z systemu poświadczeniem wywołującego), `fetchAll` w resolverze (jedno wywołanie na hity wyszukiwania), `ExampleResourceDescription` (rekord jako zasób polityki: id, rodzic i klasyfikacja z odpowiedzi systemu) |
 | `mcp-tools` | narzędzia MCP, powierzchnia publiczna | `ExampleTool` (`get_record`, `search_records`), `ExampleSearchQuery` (zapytanie do systemu budowane przez serwer), `ExampleRecordView` i `ExampleSearchView` (wyniki z `UntrustedText`, hit z `@ResourceRef`); `@ArgumentLimits` i `SchemaLimitedToolCallbacks` pochodzą ze startera (limity argumentów w `inputSchema`) |
 | `mcp-app` | bootstrap, wiring, jedyny jar, testy end-to-end | `McpServerApplication`, `McpToolsConfiguration` (lista narzędzi), `ApplicationWiringConfiguration` |
 
@@ -48,9 +51,17 @@ narzędzia, więc ich zmiana zmienia `definitionHash`.
 Wybór zakresu: model podaje wartości (projekt, tekst), nigdy fragmentu języka zapytań. `ExampleSearchQuery` składa
 zapytanie przez `scope.jql(pola).where(pole, operator, wartość).build()` (Confluence: `scope.cql`): starter dokleja
 zawężenie z linku (`project in (...)`) i cytuje każdą wartość, więc cudzysłów ani nawias w tekście nie zmienia
-zapytania. Systemy bez budowniczego w starterze (GitLab, service desk, OpenSearch) sprawdzają zakres ręcznie
-(`linkIds()`, `nothingToQuery()`), a gdzie system nie stosuje praw użytkownika, ograniczają zapytanie do
-`grantedIds()` (`grantsNothing()` = nie pytaj systemu).
+zapytania. Pola i operatory są normatywne (CC-160): warunki JQL to `text`, `status`, `assignee`, `summary`, CQL `text`,
+`title`, `label`; operatory `EQUALS`, `CONTAINS`, `NOT_EQUALS` z jedną wartością; `ORDER BY` z `created`, `updated`,
+`priority`, `key` (CQL: `created`, `lastmodified`, `title`). Projekt ani przestrzeń nie są polami warunku, dlatego
+`ExampleService` zawęża wiersze do żądanego zakresu po odpowiedzi systemu (limit z systemu liczy wiersze wszystkich
+projektów, które użytkownik widzi). Zapytanie ma postać `(warunki) AND project in (...)`. Systemy bez budowniczego w starterze (GitLab, service desk) sprawdzają zakres ręcznie (`linkIds()`), a gdzie system nie
+stosuje praw użytkownika (service desk z kontem serwisowym) pytają tylko o kolejki z `grantedIds()`; `nothingToQuery()`
+oznacza: zwróć pusty wynik bez wywołania systemu. OpenSearch nie wysyła wzorców `p-*` do wyszukiwania: wzorce zakresu
+(`opensearchIndexExpression()`) idą wyłącznie do `GET _resolve/index/`, `resolveIndexNames` zostawia nazwy indeksów
+(bez aliasów i strumieni danych) w zakresie, a wyszukiwanie dostaje listę nazw i `OPENSEARCH_SEARCH_PARAMETERS`. Indeks
+podany jako argument narzędzia przechodzi przez `resolveIndexArgument` (alias, indeks poza zakresem i nieznany to ten
+sam `not_found_or_denied`).
 
 ## Jak przechodzi wywołanie
 
@@ -58,7 +69,7 @@ zapytania. Systemy bez budowniczego w starterze (GitLab, service desk, OpenSearc
 gateway --mTLS (CN mcp-gateway) + JWT C2 (aud mcp-example, tool get_record) + X-MCP-Credential-->
   starter: InternalJwtFilter (inaczej 401) -> CredentialHeaderFilter -> AuditingToolCallback (C8)
   -> starter: Cedar `call` na narzędziu (grupa, link), potem dla @ResourceRef:
-     ExampleRecordResolver -> ExampleResourceAdapter: CredentialContext + credential::applyTo
+     ExampleRecordResolver -> ExampleResourceAdapter -> ExampleBackendClient: CredentialContext + credential::applyTo
      -> GET {MCP_EXAMPLE_URL}/api/records/{id}; opis zasobu (projekt i klasyfikacja Z SYSTEMU) -> Cedar `read`
   -> ExampleTool.getRecord: rekord, który pobrał resolver (bez drugiego wywołania)
   -> search_records: ExampleSearchQuery (QueryScope + StructuredQuery) -> ExampleService -> adapter
@@ -90,11 +101,20 @@ wyłącza TLS i mTLS, trzyma `jti` w pamięci i dopuszcza klucze testowe; starte
 | `MCP_POLICY_KEY_ID`, `MCP_POLICY_PUBLIC_KEY_FILE` | identyfikator i plik klucza publicznego Ed25519 (SPKI PEM) paczki; klucze `test-*` są odrzucane poza `dev` | wymagane |
 | `MCP_POLICY_STATE_DIR` | katalog na instancję z rewizją ostatniej przyjętej paczki; chroni przed cofnięciem po restarcie | wymagane |
 | `MCP_INTERNAL_URL` | adres serwera w manifeście (`https://mcp-example.internal:8443/mcp`) | wymagane |
-| `MCP_ACCEPTED_CREDENTIAL_TYPES` | typy poświadczeń, które serwer przyjmuje (manifest) | `user-secret` |
+| `MCP_ACCEPTED_CREDENTIAL_TYPES` | typy poświadczeń, które serwer przyjmuje (manifest); musi zawierać `credential-type` | zależy od systemu (niżej) |
 | `MCP_PORT`, `MCP_BIND` | port i adres nasłuchu | `8443`, `0.0.0.0` |
 
+`aiwcorpo.mcp.platform.credential-type` (w `application.yml`, nie zmienna środowiska) to typ poświadczenia, który gateway
+rozwiązuje dla tego systemu; trafia do każdego żądania Cedar jako `context.credentialType` i bez niego serwer nie wstaje.
+`new-server.sh` ustawia go razem z `accepted-credential-types`: Jira i Confluence `user-secret`, GitLab `user-oauth`
+(przyjmuje też `user-secret`), Service Desk `service-account`, OpenSearch `token-exchange`. To musi być ten sam typ, który
+ma konfiguracja systemu w gateway'u i brokerze (inaczej rejestracja kończy się `credential_type_mismatch`). Wartość
+w `application.yml` template'u (`user-secret`) jest przykładowa.
+
 Serwer nie wstaje bez pierwszej podpisanej paczki polityk w 30 s (`policy.startup-timeout`), a wersja w manifeście to
-wersja projektu. `GET /mcp-manifest` (wewnętrzny JWT serwisowy gateway'a) zwraca manifest C6 zbudowany z tego, co
+wersja projektu. Manifest do rejestracji w gateway'u to artefakt etapu budowy przeglądanego commitu: testy zapisują go jako
+`mcp-app/target/mcp-manifest.json` (`manifest.output-file`), nigdy odpowiedź działającego serwera. Pole `environment: dev`
+dodaje tylko profil `devstack`; gateway w trybie produkcyjnym odrzuca taki manifest (`environment_mismatch`). `GET /mcp-manifest` (wewnętrzny JWT serwisowy gateway'a) zwraca manifest C6 zbudowany z tego, co
 serwer naprawdę publikuje; służy do rejestracji w gateway'u (`manifest.output-file` zapisuje go też do pliku).
 W profilu `dev` paczka idzie z repozytorium polityk środowiska (`http://127.0.0.1:18747/policies/main/latest.json`,
 klucz `mcp-policies/keys/dev/test-policies-main-dev.public.pem`, względem katalogu repozytorium serwera), a
@@ -178,9 +198,15 @@ handshake'u. Pełne wywołanie narzędzia wymaga gateway'a z hosta (`mcp-gateway
 
 ## Uruchomienie w stosie dev w kontenerach (profil `devstack`)
 
-`dev` jest zabroniony w kontenerze, więc usługa `mcp-example` w compose `mcp-platform-dev` działa z konfiguracją bazową
-(mTLS, Redis, https) i profilem `devstack`, który zdejmuje tylko zakaz kluczy `test-*` (klucze podpisu paczek polityk i
-JWT gateway'a stosu). Obie zgody ustawia konfiguracja stosu, nie obraz serwera:
+`dev` jest zabroniony w kontenerze, więc usługa `mcp-<system>` w compose `mcp-platform-dev` działa z konfiguracją bazową
+(mTLS, Redis, https) i profilem `devstack`, który zdejmuje zakaz kluczy z prefiksem `test-` i `dev-` (klucze podpisu
+paczek polityk i JWT gateway'a stosu; kontrakty 4.0.0 odrzucają `dev-` poza trybem dev: profil `devstack` z obiema zgodami
+i `allow-test-keys=true`). Zgody ustawia konfiguracja stosu, nie obraz serwera; `MCP_DEVSTACK_ACKNOWLEDGED` musi być
+zmienną środowiska procesu (`environment:` kontenera). Serwer w profilu `devstack` publikuje manifest z `"environment": "dev"`.
+
+System serwera (`server-id` `mcp-<system>`) musi być jednym z `SystemId` kontraktów (`jira`, `confluence`, `gitlab`,
+`servicedesk`, `opensearch`): inaczej serwer nie przejdzie rejestracji. Serwer `example` (template) i próbny działają
+tylko w profilu `dev` na hoście; w stosie jako próbne nie nadają się. Przykład dla `mcp-jira`:
 
 ```yaml
 environment:
@@ -188,35 +214,48 @@ environment:
   MCP_DEVSTACK_ACKNOWLEDGED: "true"
   AIWCORPO_MCP_PLATFORM_DEVSTACK_ACKNOWLEDGED: "true"
   AIWCORPO_MCP_PLATFORM_POLICY_ALLOW_TEST_KEYS: "true"
-  AIWCORPO_MCP_PLATFORM_POLICY_MAIN_KEY_ID: test-policies-main-dev
-  AIWCORPO_MCP_PLATFORM_INTERNAL_JWT_ALLOW_TEST_KEYS: "true"   # gdy gateway podpisuje kluczami testowymi
-  MCP_POLICY_URL: https://...                    # repozytorium paczek stosu (https)
-  MCP_POLICY_PUBLIC_KEY_FILE: /run/policy/test-policies-main-dev.public.pem
-  MCP_POLICY_STATE_DIR: /var/lib/mcp-example/policy-state
+  AIWCORPO_MCP_PLATFORM_POLICY_MAIN_KEY_ID: dev-policies-main      # identyfikator klucza paczek stosu (test-* lub dev-*)
+  AIWCORPO_MCP_PLATFORM_INTERNAL_JWT_ALLOW_TEST_KEYS: "true"       # gdy gateway podpisuje kluczami testowymi lub dev-
+  MCP_TLS_KEYSTORE: /run/tls/keystore.p12                           # certyfikat serwera (SAN mcp-jira.internal)
+  MCP_TLS_TRUSTSTORE: /run/tls/truststore.p12                       # CA wewnętrzne, także dla JWKS
+  MCP_TLS_STORE_PASSWORD: ${TLS_STORE_PASSWORD}                     # hasło obu magazynów (z sekretów stosu)
+  MCP_GATEWAY_JWKS_URI: https://mcp-gateway.internal:8443/.well-known/jwks.json
+  MCP_CONNECT_URL: https://portal.internal/connections?system={system}
+  MCP_INTERNAL_URL: https://mcp-jira.internal:8443/mcp              # adres w manifeście
+  MCP_JIRA_URL: https://jira.internal                               # API systemu (mock po http: MCP_JIRA_ALLOW_PLAIN_HTTP)
+  MCP_POLICY_URL: https://policies.internal/policies/main/latest.json   # repozytorium paczek stosu (https)
+  MCP_POLICY_PUBLIC_KEY_FILE: /run/policy/policies-main.public.pem
+  MCP_POLICY_STATE_DIR: /var/lib/mcp-jira/policy-state
+  MCP_REDIS_HOST: redis
+  MCP_REDIS_USER: mcp-jira
+  MCP_REDIS_PASSWORD: ${REDIS_MCP_JIRA_PASSWORD}
 ```
 
-Reszta zostaje jak na produkcji (TLS i mTLS, Redis na `jti`, `policy.state-dir`). Każdy start loguje
-`WARN event=devstack_profile`, a metryka `mcp_server_devstack_active` ma wartość 1. Bez obu zgód albo z drugim profilem
-start jest odrzucany.
+Adresy `*.internal` i ścieżki plików odpowiadają stosowi `mcp-platform-dev` (`docker-compose.yml`); sekrety pochodzą z jego `.secrets`. Reszta zostaje
+jak na produkcji (TLS i mTLS, Redis na `jti`, `policy.state-dir`). Każdy start loguje `WARN event=devstack_profile`, a
+metryka `mcp_server_devstack_active` ma wartość 1. Bez obu zgód albo z drugim profilem start jest odrzucany.
 
 ## Testy
 
 | Klasa | Co sprawdza |
 | --- | --- |
 | `GetRecordToolTest` | poświadczenie z C3 dociera do systemu, jedno wywołanie na rekord; `readOnlyHint`, tytuł, zamknięty schemat, `maxLength` i `pattern`; brak poświadczenia i 401 systemu -> `credential_required`; 404 i 403 -> ten sam `not_found_or_denied`; zły `recordId` nie dociera do systemu i nie wraca w błędzie; nieczytelna odpowiedź 200 i rekord bez `id` -> `internal_error` bez treści w logu; przekierowanie nie jest wykonywane; timeout -> `upstream_unavailable`; za duża odpowiedź ucięta; poświadczenie nie trafia do wyniku ani logu |
-| `ResourcePolicyTest` | rekord w projekcie `restricted` i rekord przeniesiony do takiego projektu dają `not_found_or_denied` identyczne jak nieistniejący; rekord z nieznaną klasyfikacją nie jest wydawany (`internal_error`, kontrakt); `access_denied` bez grupy i bez wywołania systemu; link zawężony do innego projektu ukrywa rekord; awaria systemu to nie odmowa |
-| `SearchRecordsToolTest` | wyniki bez rekordów zastrzeżonych i przeniesionych; link zawężony do jednego projektu nie zwraca rekordów spoza niego i jest w zapytaniu; wyszukiwanie poza linkiem jest puste; cudzysłów w tekście od modelu zostaje literałem; hity rozwiązane jednym wywołaniem; `credential_required`, `access_denied`, błędne argumenty |
-| `ManifestTest` | manifest przechodzi reguły gateway'a, definicje równe `tools/list` (zgodny `definitionHash`), tytuły i zamknięte schematy, `resourceRefs`, 401 bez JWT |
+| `ResourcePolicyTest` | rekord w projekcie `restricted` i rekord przeniesiony do takiego projektu dają `not_found_or_denied` identyczne jak nieistniejący; rekord z nieznaną klasyfikacją nie jest wydawany (`internal_error`, kontrakt; użytkownik bez grantu dostaje `not_found_or_denied` przed resolverem); każda odmowa ma stały tekst `ToolErrorCode.NOT_FOUND_OR_DENIED_MESSAGE`; `access_denied` bez grupy i bez wywołania systemu; link zawężony do innego projektu ukrywa rekord; awaria systemu to nie odmowa |
+| `SearchRecordsToolTest` | wyniki bez rekordów zastrzeżonych i przeniesionych; link zawężony do jednego projektu nie zwraca rekordów spoza niego i jest w zapytaniu; wyszukiwanie poza linkiem jest puste; wiersze innych projektów niż żądany są usuwane; kolejka bez grantu nie jest pytana (Service Desk); cudzysłów w tekście od modelu zostaje literałem; hity rozwiązane jednym wywołaniem; `credential_required`, `access_denied`, błędne argumenty |
+| `ManifestTest` | manifest przechodzi reguły gateway'a, definicje równe `tools/list` (zgodny `definitionHash`), tytuły i zamknięte schematy, `resourceRefs`, 401 bez JWT; artefakt budowy `target/mcp-manifest.json` równy manifestowi serwera; bez `environment` poza `devstack`, `acceptedTypes` z typem systemu |
 | `GatewayOnlyAccessTest` | bez JWT 401 (`tools/call`, `ping`, `initialize`), JWT dla innego serwera, innego narzędzia, wariant serwisowy i przeterminowany -> 401; bez JWT tylko health; system zgodny z `SystemId` (albo jawnie próbny) |
-| `ProductionConfigurationTest` | konfiguracja bazowa: `client-auth: need`, paczka polityk i manifest wymagane, bez kluczy testowych; klucze testowe i repozytorium polityk dev tylko w `application-dev.yml`; backend `http` poza `dev` odrzucony (chyba że jawnie dopuszczony); `dev` na 127.0.0.1 |
+| `ProductionConfigurationTest` | `credential-type` ustawiony i przyjęty przez manifest (baza i `dev`); konfiguracja bazowa: `client-auth: need`, paczka polityk i manifest wymagane, bez kluczy testowych; klucze testowe i repozytorium polityk dev tylko w `application-dev.yml`; backend `http` poza `dev` odrzucony (chyba że jawnie dopuszczony); `dev` na 127.0.0.1 |
+| `IndexResolutionTest` (tylko serwer OpenSearch) | wzorce zakresu idą tylko do `_resolve/index`, wyszukiwanie dostaje nazwy bez aliasu i parametry listy nazw, link na inny prefiks i brak grantu nie wołają systemu |
 | `DevProfileLoopbackTest` | reguła adresu `dev` (`assertDevProfileLoopbackRule`) i obecność guardów w kontekście serwera (`assertServerIsGuarded`) |
 | `ExampleToolTest` | walidacja tekstu wyszukiwania (stały komunikat), limity i zamknięte schematy obu narzędzi, `get_record` z kontekstem z `TestResourceContext` |
-| `ExampleServiceTest` | limit wyników wyszukiwania bez Springa |
+| `ExampleServiceTest` | limit wyników i zawężenie do żądanego projektu bez Springa |
 
 Nowe narzędzie dostaje test w tym samym stylu: klasa dziedziczy po `ServerTestSupport`, odpowiedź systemu
 dopisuje się w `StubBackend`. Polityka w testach to paczka z przykładów kontraktów (`TestGateway`; dla serwera spoza pięciu systemów
 generowana: grupy `mcp-<system>-read|write|destructive`, odczyt, `restricted`, link). Serwer próbny nie ma poprawnego manifestu
-(`serverId` jest enumem), więc `ManifestTest` pomija go, a `credential_required` jest w nim `internal_error`. 
+(`serverId` jest enumem kontraktów), więc osiem testów `ManifestTest` jest w template'cie i w serwerze próbnym pomijanych
+(`assumeFalse(TRIAL_SYSTEM)`: raportowane jako "skipped", nie jako błąd) i wykonywanych w każdym serwerze wygenerowanym dla
+systemu z `SystemId`; `credential_required` jest w serwerze próbnym `internal_error`. 
 Identyfikatory przykładowych rekordów muszą pasować do wzorca typu zasobu z kontraktów (starter sprawdza go przed
 resolverem), dlatego `SampleScope` jest osobny dla każdego systemu.
 

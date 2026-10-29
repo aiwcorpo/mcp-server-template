@@ -1,94 +1,36 @@
 package pl.aiwcorpo.mcp.example.integration;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import java.net.URI;
-import java.net.http.HttpClient;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Supplier;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.ssl.SslBundles;
-import org.springframework.core.env.Environment;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatusCode;
-import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.HttpServerErrorException;
-import org.springframework.web.client.ResourceAccessException;
-import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestClientResponseException;
 import pl.aiwcorpo.mcp.example.core.domain.ExampleRecord;
 import pl.aiwcorpo.mcp.example.core.domain.ExampleRecordHit;
 import pl.aiwcorpo.mcp.example.core.port.out.ExampleResourcePort;
-import pl.aiwcorpo.mcp.platform.security.BackendCredential;
-import pl.aiwcorpo.mcp.platform.security.CredentialContext;
-import pl.aiwcorpo.mcp.platform.security.CredentialRequiredException;
 
 /**
- * Calls the backend API as the user: with the credential the gateway resolved for this request (C3), never
- * with an account of the server.
- *
- * <p>Error mapping matters for security: 404 and 403 both become "not visible" (one client-facing code,
- * {@code not_found_or_denied}), and 401 means the stored credential no longer works, so the user is sent to
- * the portal to reconnect ({@code credential_required}). A failed call becomes an exception with the status
- * alone, an unusable answer (redirect, unparsable or oversized body) a {@link BackendResponseException}, so no
- * response body reaches a message or a log line.
+ * The paths and answers of the backend API. Credentials, timeouts, redirects, size limits and the mapping of failures
+ * are in {@link ExampleBackendClient}; here a 404 and a 403 both become "not visible" (an empty result, one
+ * client-facing code {@code not_found_or_denied}) and every answer is read into the fields the domain needs.
  */
 @Component
-@EnableConfigurationProperties(ExampleBackendProperties.class)
 public class ExampleResourceAdapter implements ExampleResourcePort {
 
-    private static final String DEV_PROFILE = "dev";
-    private static final String SERVER_ID_PROPERTY = "aiwcorpo.mcp.platform.server-id";
-    private static final Logger LOG = LoggerFactory.getLogger(ExampleResourceAdapter.class);
+    private final ExampleBackendClient backend;
 
-    private final RestClient client;
-    private final String system;
-
-    public ExampleResourceAdapter(ExampleBackendProperties properties, ObjectProvider<SslBundles> sslBundles,
-            Environment environment) {
-        // The credential of the request is bound to the system of the server id (mcp-<system>), so the adapter asks
-        // for exactly that one; a constant here would drift from the configuration.
-        this.system = environment.getRequiredProperty(SERVER_ID_PROPERTY).substring("mcp-".length());
-        this.client = RestClient.builder()
-                .baseUrl(requireBaseUrl(properties.baseUrl(),
-                        environment.matchesProfiles(DEV_PROFILE) || properties.allowPlainHttp()))
-                .requestFactory(requestFactory(properties, sslBundles))
-                .requestInterceptor(new BoundedBodyInterceptor(properties.maxResponseSize().toBytes()))
-                .defaultStatusHandler(status -> status.isError() || status.is3xxRedirection(), (request, response) -> {
-                    // Status only: the body and headers of a failed call may echo the credential or carry backend
-                    // detail, and the exception message ends up in the starter's tool_failed log line.
-                    HttpStatusCode status = response.getStatusCode();
-                    if (status.is3xxRedirection()) {
-                        // Redirects are not followed (the credential must not go elsewhere) and an empty body
-                        // must not read as "no record": an SSO login page would turn into not_found_or_denied.
-                        throw new BackendResponseException("redirect " + status.value());
-                    }
-                    throw status.is4xxClientError()
-                            ? HttpClientErrorException.create(status, "", HttpHeaders.EMPTY, new byte[0], null)
-                            : HttpServerErrorException.create(status, "", HttpHeaders.EMPTY, new byte[0], null);
-                })
-                .build();
+    public ExampleResourceAdapter(ExampleBackendClient backend) {
+        this.backend = backend;
     }
 
     @Override
     public Optional<ExampleRecord> findById(String recordId) {
-        BackendCredential credential = CredentialContext.require(system);
         RecordResponse response;
         try {
-            response = call(() -> client.get()
-                    .uri("/api/records/{id}", recordId)
-                    .headers(credential::applyTo)
-                    .retrieve()
-                    .body(RecordResponse.class));
+            response = backend.get(RecordResponse.class, "/api/records/{id}", recordId);
         } catch (HttpClientErrorException.NotFound | HttpClientErrorException.Forbidden hidden) {
             return Optional.empty();
         }
@@ -100,13 +42,8 @@ public class ExampleResourceAdapter implements ExampleResourcePort {
 
     @Override
     public Map<String, ExampleRecord> findAllById(Collection<String> recordIds) {
-        BackendCredential credential = CredentialContext.require(system);
         // Ids were checked against the pattern of their type by the starter; template variables encode them anyway.
-        SearchResponse response = call(() -> client.get()
-                .uri("/api/records?ids={ids}", String.join(",", recordIds))
-                .headers(credential::applyTo)
-                .retrieve()
-                .body(SearchResponse.class));
+        SearchResponse response = backend.get(SearchResponse.class, "/api/records?ids={ids}", String.join(",", recordIds));
         if (response == null || response.records() == null) {
             throw new BackendResponseException("empty body");
         }
@@ -120,70 +57,12 @@ public class ExampleResourceAdapter implements ExampleResourcePort {
 
     @Override
     public List<ExampleRecordHit> search(String query, int limit) {
-        BackendCredential credential = CredentialContext.require(system);
         // The query is a value of a template variable, so it is encoded as one parameter whatever it contains.
-        SearchResponse response = call(() -> client.get()
-                .uri("/api/records?query={query}&limit={limit}", query, limit)
-                .headers(credential::applyTo)
-                .retrieve()
-                .body(SearchResponse.class));
+        SearchResponse response = backend.get(SearchResponse.class, "/api/records?query={query}&limit={limit}", query, limit);
         if (response == null || response.records() == null) {
             throw new BackendResponseException("empty body");
         }
         return response.records().stream().map(RecordResponse::toHit).toList();
-    }
-
-    /**
-     * Runs one backend call and maps its failures. 404 and 403 pass through as they are: for a single record they
-     * mean "not visible" (the caller turns them into an empty result, one client-facing code
-     * {@code not_found_or_denied}), for a search they are plain failures.
-     */
-    private <T> T call(Supplier<T> request) {
-        try {
-            return request.get();
-        } catch (HttpClientErrorException.Unauthorized expired) {
-            throw new CredentialRequiredException(system);
-        } catch (RestClientResponseException | ResourceAccessException statusOrIo) {
-            // Status-only exceptions (see the status handler) and I/O failures: the starter maps 502-504 and
-            // unreachable backends to upstream_unavailable.
-            throw statusOrIo;
-        } catch (RestClientException unreadable) {
-            // A 2xx body that does not parse: the converter's message quotes the body.
-            throw new BackendResponseException("body not readable");
-        }
-    }
-
-    private static String requireBaseUrl(String baseUrl, boolean plainHttpAllowed) {
-        if (baseUrl == null || baseUrl.isBlank()) {
-            throw new IllegalStateException("example.backend.base-url (MCP_EXAMPLE_URL) must point at the backend API");
-        }
-        URI uri = URI.create(baseUrl);
-        if (uri.getHost() == null || !("https".equals(uri.getScheme()) || "http".equals(uri.getScheme()))) {
-            throw new IllegalStateException("example.backend.base-url must be an absolute http(s) URL");
-        }
-        if (!"https".equals(uri.getScheme())) {
-            if (!plainHttpAllowed) {
-                // The user's credential travels in a header; over http it would cross the network in clear text.
-                throw new IllegalStateException("example.backend.base-url must use https outside the 'dev' profile "
-                        + "(example.backend.allow-plain-http exists for the mocks of mcp-platform-dev only)");
-            }
-            LOG.warn("event=backend_plain_http detail=\"credentials go to the backend unencrypted\"");
-        }
-        return baseUrl;
-    }
-
-    private static JdkClientHttpRequestFactory requestFactory(ExampleBackendProperties properties,
-            ObjectProvider<SslBundles> sslBundles) {
-        // Redirects are not followed: the credential header must not travel to wherever a backend points.
-        HttpClient.Builder http = HttpClient.newBuilder()
-                .connectTimeout(properties.connectTimeout())
-                .followRedirects(HttpClient.Redirect.NEVER);
-        if (properties.sslBundle() != null && !properties.sslBundle().isBlank()) {
-            http.sslContext(sslBundles.getObject().getBundle(properties.sslBundle()).createSslContext());
-        }
-        JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(http.build());
-        factory.setReadTimeout(properties.readTimeout());
-        return factory;
     }
 
     /** The backend's representation; unknown fields are dropped here and never reach the model. */
@@ -204,7 +83,7 @@ public class ExampleResourceAdapter implements ExampleResourcePort {
             if (id == null || id.isBlank()) {
                 throw new BackendResponseException("hit without id");
             }
-            return new ExampleRecordHit(id, title);
+            return new ExampleRecordHit(id, project, title);
         }
     }
 

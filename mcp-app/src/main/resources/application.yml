@@ -26,6 +26,9 @@ aiwcorpo:
   mcp:
     platform:
       server-id: mcp-example
+      # The type the gateway resolves for this system (its own system configuration, the same one it checks the manifest
+      # against). It goes into every Cedar request as context.credentialType; new-server.sh sets it per system.
+      credential-type: user-secret
       internal-jwt:
         issuer: ${MCP_GATEWAY_ISSUER:https://mcp-gateway.internal}
         jwks-uri: ${MCP_GATEWAY_JWKS_URI:}

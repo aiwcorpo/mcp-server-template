@@ -11,9 +11,11 @@ import pl.aiwcorpo.mcp.platform.resource.StructuredQuery.Operator;
  * with the one of the generated system; the Jira variant (JQL) is the template's own.
  *
  * <p>{@link QueryScope#jql} adds the narrowing of the virtual server link (a {@code project in (...)} clause) and
- * quotes and escapes every value, so a text with a quote, a bracket or {@code OR project = HR} stays one literal.
- * The requested project is a filter too, so a project outside the link yields an empty result from the system itself.
- * Where the system applies the user's own rights (Jira does), this is all the scope the query needs.
+ * quotes every value, so a text with a quote, a bracket or {@code OR project = HR} stays one literal. Conditions may
+ * only use the fields the contracts fix ({@code text}, {@code status}, {@code assignee}, {@code summary}) and the
+ * operators {@code EQUALS}, {@code CONTAINS}, {@code NOT_EQUALS}, so {@code project} is not a condition: the requested
+ * project is applied to the rows by the use case. Where the system applies the user's own rights (Jira does), this is
+ * all the scope the query needs.
  */
 final class ExampleSearchQuery {
 
@@ -22,8 +24,7 @@ final class ExampleSearchQuery {
 
     /** Empty when there is nothing to ask the system. */
     static Optional<String> of(QueryScope scope, String project, String text) {
-        return Optional.of(scope.jql(Set.of("project", "text"))
-                .where("project", Operator.EQUALS, project)
+        return Optional.of(scope.jql(Set.of("text"))
                 .where("text", Operator.CONTAINS, text)
                 .build());
     }

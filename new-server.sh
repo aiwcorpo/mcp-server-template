@@ -10,7 +10,9 @@
 #   pl.aiwcorpo.mcp.example -> pl.aiwcorpo.mcp.<system>   (groupId, Java packages, directories)
 #   example / Example / EXAMPLE -> <system> / <System> / <SYSTEM>
 # The template's resource model is the Jira one. For another system the files under profiles/<system>/ (resource
-# types, how a record is described to the policy, test ids) replace their counterparts. Template-only files (this
+# types, how a record is described to the policy, test ids) replace their counterparts (files without a counterpart are
+# added), and the credential type of
+# the system goes into the configuration. Template-only files (this
 # script, its test, STATUS.md, docs/nowy-serwer.md, profiles/) are not copied. Afterwards no
 # "example" may remain; on any failure the target directory is removed.
 set -euo pipefail
@@ -113,9 +115,36 @@ while IFS= read -r file; do
     fi
 done <<< "$files"
 
+# Files only the system's profile has (extra tests of its own behavior).
+if [[ "$trial" == false && -d "profiles/$system" ]]; then
+    while IFS= read -r profile_file; do
+        file="${profile_file#profiles/$system/}"
+        [[ -e "$file" ]] && continue
+        destination="$target/$(printf '%s' "$file" | rename)"
+        mkdir -p "$(dirname "$destination")"
+        rename < "$profile_file" > "$destination"
+    done < <(git ls-files --cached "profiles/$system")
+fi
+
 if [[ "$trial" == false ]]; then
     perl -pi -e 's/static final boolean TRIAL_SYSTEM = true;/static final boolean TRIAL_SYSTEM = false;/' \
         "$target/mcp-app/src/test/java/pl/aiwcorpo/mcp/$system/app/ServerTestSupport.java"
+fi
+
+# The credential type is the system's configuration in the gateway and the broker (Cedar sees it as
+# context.credentialType): GitLab resolves OAuth tokens (a PAT is accepted too), Service Desk uses the account of the
+# service, OpenSearch exchanges the user's token, Jira and Confluence use the user's own secret.
+if [[ "$trial" == false ]]; then
+    case "$system" in
+        gitlab) credential_type=user-oauth; accepted_types=user-oauth,user-secret ;;
+        servicedesk) credential_type=service-account; accepted_types=service-account ;;
+        opensearch) credential_type=token-exchange; accepted_types=token-exchange ;;
+        *) credential_type=user-secret; accepted_types=user-secret ;;
+    esac
+    resources="$target/mcp-app/src/main/resources"
+    perl -pi -e "s/^(\\s*credential-type: ).*/\${1}$credential_type/; s/(accepted-credential-types: .*:)user-secret\\}/\${1}$accepted_types}/" \
+        "$resources/application.yml"
+    perl -pi -e "s/(accepted-credential-types: )user-secret\$/\${1}$accepted_types/" "$resources/application-dev.yml"
 fi
 
 if leftovers="$(grep -rIil example "$target")" && [[ -n "$leftovers" ]]; then

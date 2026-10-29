@@ -42,6 +42,8 @@ abstract class ServerTestSupport {
      */
     static final boolean TRIAL_SYSTEM = true;
 
+    static final java.nio.file.Path MANIFEST_FILE = java.nio.file.Path.of("target", "mcp-manifest.json");
+
     static final String SERVER_ID = "mcp-" + SYSTEM;
     static final String READ_GROUP = SERVER_ID + "-read";
     static final String ENDPOINT = "/mcp";
@@ -53,7 +55,14 @@ abstract class ServerTestSupport {
     @DynamicPropertySource
     static void environment(DynamicPropertyRegistry registry) {
         GATEWAY.serverProperties().forEach((name, value) -> registry.add(name, () -> value));
+        // TestGateway assumes user-secret; the server of a system that gets another type must say so in its own
+        // configuration, and accept only that type, as the gateway checks at registration (credential_type_mismatch).
+        registry.add("aiwcorpo.mcp.platform.credential-type", () -> SampleScope.CREDENTIAL_TYPE.wireName());
+        registry.add("aiwcorpo.mcp.platform.manifest.accepted-credential-types", () -> SampleScope.CREDENTIAL_TYPE.wireName());
         registry.add("example.backend.base-url", BACKEND::baseUrl);
+        // The artifact the build hands to the registration step: the manifest of the commit under review, not an answer
+        // of a running server (CC-133, CC-140).
+        registry.add("aiwcorpo.mcp.platform.manifest.output-file", () -> MANIFEST_FILE.toString());
         // Short limits so the timeout and size tests run quickly; StubBackend's slow and huge records exceed them.
         registry.add("example.backend.read-timeout", () -> "1s");
         registry.add("example.backend.max-response-size", () -> "64KB");
@@ -81,7 +90,7 @@ abstract class ServerTestSupport {
         HttpClientStreamableHttpTransport transport = HttpClientStreamableHttpTransport.builder(baseUrl())
                 .endpoint(ENDPOINT)
                 .openConnectionOnStartup(false)
-                .httpRequestCustomizer(GATEWAY.asGateway(user, credential))
+                .httpRequestCustomizer(GATEWAY.asGateway(user, credential, SampleScope.CREDENTIAL_TYPE))
                 .build();
         McpSyncClient client = McpClient.sync(transport).requestTimeout(Duration.ofSeconds(20)).build();
         client.initialize();

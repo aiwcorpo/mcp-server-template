@@ -48,12 +48,12 @@ final class SampleScope {
     static final boolean READ_REQUIRES_SCOPE = false;
 
     /** Groups of the test caller besides the read group: grants the policy needs to read anything (OpenSearch). */
-    static final List<String> EXTRA_GROUPS = List.of("mcp-confluence-space-ENG");
+    static final List<String> EXTRA_GROUPS = List.of();
 
     /** Whether the server hands the narrowing of a link to the system inside the query (JQL, CQL) instead of checking it itself. */
     static final boolean QUERY_CARRIES_LINK = true;
 
-    static final String OPEN_PROJECT = "ENG";
+    static final String OPEN_PROJECT = "ABC";
     static final String OTHER_PROJECT = "DEF";
     static final String RESTRICTED_PROJECT = "HR";
     static final String UNCLASSIFIED_PROJECT = "NOC";

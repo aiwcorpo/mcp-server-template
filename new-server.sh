@@ -135,6 +135,7 @@ fi
 # the gateway and the broker. GitLab resolves OAuth tokens (a PAT is accepted too), Service Desk uses the account of the
 # service, OpenSearch exchanges the user's token, Jira and Confluence use the user's own secret.
 if [[ "$trial" == false ]]; then
+    perl -pi -e 's|<manifest.export.skip>true</manifest.export.skip>|<manifest.export.skip>false</manifest.export.skip>|' "$target/mcp-app/pom.xml"
     case "$system" in
         gitlab) accepted_types=user-oauth,user-secret ;;
         servicedesk) accepted_types=service-account ;;

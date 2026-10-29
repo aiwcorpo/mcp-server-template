@@ -16,7 +16,7 @@ import pl.aiwcorpo.mcp.platform.input.SchemaLimitedToolCallbacks;
 public class McpToolsConfiguration {
 
     @Bean
-    ToolCallbackProvider mcpTools(ExampleTool exampleTool) {
+    public ToolCallbackProvider mcpTools(ExampleTool exampleTool) {
         return SchemaLimitedToolCallbacks.of(exampleTool);
     }
 }

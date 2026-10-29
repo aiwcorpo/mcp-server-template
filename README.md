@@ -1,6 +1,6 @@
 # mcp-example: serwer MCP platformy
 
-Serwer MCP dla systemu `example`, zbudowany na `mcp-platform-starter` 3.0.0-beta-8 (Java 25, Spring Boot
+Serwer MCP dla systemu `example`, zbudowany na `mcp-platform-starter` 3.0.0-beta-9 (Java 25, Spring Boot
 4.1.0, Spring AI 2.0.0, kontrakty `mcp-contracts` 4.1.0). Stoi wyłącznie za gateway'em platformy: przyjmuje
 ruch tylko po mTLS z wewnętrznym JWT gateway'a (C2), a do systemu docelowego woła z poświadczeniem
 użytkownika, które gateway dołącza do każdego żądania (C3). Bez poprawnego JWT odpowiada 401, nie ma trybu
@@ -114,10 +114,24 @@ konfiguracja systemu w gateway'u i brokerze (inaczej rejestracja kończy się `c
 nagłówka) kończy się `internal_error` przed polityką i systemem. Wartość w `application.yml` template'u (`user-secret`) jest przykładowa.
 
 Serwer nie wstaje bez pierwszej podpisanej paczki polityk w 30 s (`policy.startup-timeout`), a wersja w manifeście to
-wersja projektu. Manifest do rejestracji w gateway'u to artefakt etapu budowy przeglądanego commitu: testy zapisują go jako
-`mcp-app/target/mcp-manifest.json` (`manifest.output-file`), nigdy odpowiedź działającego serwera. Pole `environment: dev`
-dodaje tylko profil `devstack`; gateway w trybie produkcyjnym odrzuca taki manifest (`environment_mismatch`). `GET /mcp-manifest` (wewnętrzny JWT serwisowy gateway'a) zwraca manifest C6 zbudowany z tego, co
-serwer naprawdę publikuje; służy do rejestracji w gateway'u (`manifest.output-file` zapisuje go też do pliku).
+wersja projektu. Pole `environment: dev` w manifeście dodaje tylko profil `devstack`; gateway w trybie produkcyjnym odrzuca taki
+manifest (`environment_mismatch`). `GET /mcp-manifest` (wewnętrzny JWT serwisowy gateway'a) zwraca manifest C6 zbudowany z tego, co
+serwer naprawdę publikuje; do rejestracji w gateway'u służy jednak plik z budowy (niżej), nie odpowiedź działającego serwera.
+
+## Manifest do rejestracji (CI)
+
+Zwykły build (`./mvnw package`, także z `-DskipTests`) zapisuje manifest przeglądanego commitu w `mcp-app/target/mcp-manifest.json`.
+Robi to `ManifestExport` (uruchamiany w fazie `package` przez `exec-maven-plugin`, w `mcp-app/pom.xml`): czyta konfigurację
+produkcyjną (`application.yml` bez profilu) i listę narzędzi z `McpToolsConfiguration`, nie startuje serwera (potrzebowałby
+magazynów TLS, Redisa i paczki polityk) i używa tego samego `ManifestGenerator` z tymi samymi kontrolami co serwer przy starcie,
+więc manifest, który gateway by odrzucił, zatrzymuje build. `internalUrl` jest informacyjny (z `MCP_INTERNAL_URL`, a gdy go
+brak, `https://mcp-<system>.internal:8443/mcp`). `ManifestTest` pilnuje, że narzędzia tego pliku są identyczne z `tools/list`
+działającego serwera (hash definicji obejmuje też typy poświadczeń, więc w teście porównywane są definicje bez hasha). Krok CI robi `PUT` tego pliku do rejestru gateway'a z certyfikatem
+`mcp-registry-ci-<serverId>`; zatwierdzane są tylko narzędzia `READ_ONLY`, nowe i zmienione `UPDATE`/`DESTRUCTIVE` czekają na
+`approve` administratora. Template i serwery próbne (`system` spoza `SystemId`) nie generują pliku (`manifest.export.skip=true`
+w `mcp-app/pom.xml`); `new-server.sh` ustawia `false` dla systemu z listy. `ManifestExport` jest w jarze produkcyjnym jako
+nieużywana klasa pomocnicza. Eksporter tworzy klasy narzędzi ręcznie (z `null` zamiast zależności, bo tylko czyta adnotacje), więc nowa klasa narzędzi trafia i do `McpToolsConfiguration`, i do `ManifestExport.manifest()`; `ManifestTest` wykryje brak (narzędzia pliku różne od `tools/list`).
+
 W profilu `dev` paczka idzie z repozytorium polityk środowiska (`http://127.0.0.1:18747/policies/main/latest.json`,
 klucz `mcp-policies/keys/dev/test-policies-main-dev.public.pem`, względem katalogu repozytorium serwera), a
 `policy.allow-test-keys` jest włączone tylko tam.
@@ -244,7 +258,7 @@ metryka `mcp_server_devstack_active` ma wartość 1. Bez obu zgód albo z drugim
 | `GetRecordToolTest` | poświadczenie z C3 dociera do systemu; typ poświadczenia spoza listy serwera daje `internal_error` bez wywołania systemu; jedno wywołanie na rekord; `readOnlyHint`, tytuł, zamknięty schemat, `maxLength` i `pattern`; brak poświadczenia i 401 systemu -> `credential_required`; 404 i 403 -> ten sam `not_found_or_denied`; zły `recordId` nie dociera do systemu i nie wraca w błędzie; nieczytelna odpowiedź 200 i rekord bez `id` -> `internal_error` bez treści w logu; przekierowanie nie jest wykonywane; timeout -> `upstream_unavailable`; za duża odpowiedź ucięta; poświadczenie nie trafia do wyniku ani logu |
 | `ResourcePolicyTest` | rekord w projekcie `restricted` i rekord przeniesiony do takiego projektu dają `not_found_or_denied` identyczne jak nieistniejący; rekord z nieznaną klasyfikacją nie jest wydawany (`internal_error`, kontrakt; użytkownik bez grantu dostaje `not_found_or_denied` przed resolverem); każda odmowa ma stały tekst `ToolErrorCode.NOT_FOUND_OR_DENIED_MESSAGE`; `access_denied` bez grupy i bez wywołania systemu; link zawężony do innego projektu ukrywa rekord; awaria systemu to nie odmowa |
 | `SearchRecordsToolTest` | wyniki bez rekordów zastrzeżonych i przeniesionych; link zawężony do jednego projektu nie zwraca rekordów spoza niego i jest w zapytaniu; wyszukiwanie poza linkiem jest puste; zapytanie zawężone do żądanego projektu i linku; kolejka bez grantu nie jest pytana (Service Desk); cudzysłów w tekście od modelu zostaje literałem; hity rozwiązane jednym wywołaniem; `credential_required`, `access_denied`, błędne argumenty |
-| `ManifestTest` | manifest przechodzi reguły gateway'a, definicje równe `tools/list` (zgodny `definitionHash`), tytuły i zamknięte schematy, `resourceRefs`, 401 bez JWT; artefakt budowy `target/mcp-manifest.json` równy manifestowi serwera; bez `environment` poza `devstack`, `acceptedTypes` z typem systemu |
+| `ManifestTest` | manifest przechodzi reguły gateway'a, definicje równe `tools/list` (zgodny `definitionHash`), tytuły i zamknięte schematy, `resourceRefs`, 401 bez JWT; narzędzia z `ManifestExport` (plik z budowy) równe `tools/list` serwera; bez `environment` poza `devstack`, `acceptedTypes` z typem systemu |
 | `GatewayOnlyAccessTest` | bez JWT 401 (`tools/call`, `ping`, `initialize`), JWT dla innego serwera, innego narzędzia, wariant serwisowy i przeterminowany -> 401; bez JWT tylko health; system zgodny z `SystemId` (albo jawnie próbny) |
 | `ProductionConfigurationTest` | typ domyślny jest pierwszym z `accepted-credential-types` (baza i `dev`), brak `credential-type`; konfiguracja bazowa: `client-auth: need`, paczka polityk i manifest wymagane, bez kluczy testowych; klucze testowe i repozytorium polityk dev tylko w `application-dev.yml`; backend `http` poza `dev` odrzucony (chyba że jawnie dopuszczony); `dev` na 127.0.0.1 |
 | `IndexResolutionTest` (tylko serwer OpenSearch) | wzorce zakresu idą tylko do `_resolve/index`, wyszukiwanie dostaje nazwy bez aliasu i parametry listy nazw, link na inny prefiks i brak grantu nie wołają systemu |

@@ -91,7 +91,7 @@ Na końcu skrypt sprawdza, że w nowym projekcie nie zostało żadne `example`.
    `invalid_argument`. `GatewayOnlyAccessTest` zostaje (po zmianie nazwy narzędzia w `GET_RECORD`).
 6. Konfiguracja wdrożenia: `MCP_POLICY_URL`, `MCP_POLICY_KEY_ID`, `MCP_POLICY_PUBLIC_KEY_FILE`, `MCP_POLICY_STATE_DIR`,
    `MCP_INTERNAL_URL` (szablon: `deploy/systemd/mcp-<system>.env.template`). Wersja w manifeście to wersja projektu.
-   Rejestracja manifestu w gateway'u: `GET /mcp-manifest` albo plik z `manifest.output-file`.
+   Rejestracja manifestu w gateway'u: plik `mcp-app/target/mcp-manifest.json` z fazy `package` (README, "Manifest do rejestracji"); nową klasę narzędzi dopisujesz w `McpToolsConfiguration` i w `ManifestExport.manifest()`.
 7. Dokumentacja: tabela narzędzi w README (tytuł, ryzyko, akcja, uprawnienie C9 `mcp-<system>-read|write|destructive`,
    typ poświadczenia) i `docs/api/tools-catalog.md`; własny `STATUS.md` z linią `M3`.
 8. Wdrożenie w `mcp-platform-dev`: obraz `docker build -t mcp-<system>:dev .` (Dockerfile nie może być oparty o

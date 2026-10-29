@@ -91,6 +91,22 @@ class ResourcePolicyTest extends ServerTestSupport {
     }
 
     @Test
+    void aReaderWithoutAScopeGroupReadsInsideALink() {
+        try (McpSyncClient client = clientWithToken(user -> {
+            user.username("jkowalski").groups(List.of(READ_GROUP));
+            user.virtualServer("open-only", Map.of(SampleScope.LINK_KEY, List.of(SampleScope.OPEN_PROJECT)));
+        }, PAT)) {
+            McpSchema.CallToolResult result = call(client, "get_record", Map.of("recordId", StubBackend.OPEN_1));
+
+            // A link only narrows: it adds no need for a scope group the reader does not need without it.
+            assertThat(result.isError()).isEqualTo(SampleScope.READ_REQUIRES_SCOPE);
+            if (SampleScope.READ_REQUIRES_SCOPE) {
+                assertThat(text(result)).contains(NOT_FOUND_OR_DENIED);
+            }
+        }
+    }
+
+    @Test
     void aLinkThatNarrowsToAnotherProjectHidesTheRecord() {
         try (McpSyncClient client = clientWithToken(
                 user -> { reader(user); user.virtualServer("def-only", Map.of(SampleScope.LINK_KEY, List.of(SampleScope.OTHER_PROJECT))); }, PAT)) {

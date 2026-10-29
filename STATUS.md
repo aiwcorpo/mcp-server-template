@@ -12,6 +12,21 @@ Starter (stan sprzed M4): BOM `pl.aiwcorpo.mcp:mcp-platform-bom:3.0.0-beta-4` (k
 2.0.0, Java 25). Commity: 7f65f8f (M1), c799e54, c1258c4, 83b9f3c (alpha-10), 00f87f4, 80603f4 (alpha-11), następnie M3
 (patrz `git log`). Wyszukiwanie nie przyjmuje od modelu JQL/CQL: `ExampleSearchQuery` buduje zapytanie przez `StructuredQuery`.
 
+## M4d: beta-8 -> beta-9 (2026-10-29)
+
+Podbicie na 3.0.0-beta-9 (link tylko zawęża). Confluence w testach wraca na przestrzeń `ABC` bez grup zakresu (obejście `mcp-confluence-space-ENG` z beta-8 usunięte);
+nowy test `aReaderWithoutAScopeGroupReadsInsideALink` (czytelnik bez grupy czyta przez link; dla Service Desku i OpenSearch, gdzie `READ_REQUIRES_SCOPE`, oczekiwane
+`not_found_or_denied`). Rekord w nieznanej przestrzeni bez grupy zakresu dalej jest `not_found_or_denied` (`UNCLASSIFIED_OUTSIDE_SCOPE` zostaje dla Confluence).
+
+Manifest w zwykłym buildzie (decyzja koordynatora): `mcp-app/.../ManifestExport` zapisuje `mcp-app/target/mcp-manifest.json` w fazie `package` (`exec-maven-plugin`, także
+`-DskipTests`), z konfiguracji produkcyjnej (`application.yml` bez profilu) i `McpToolsConfiguration`, bez startu serwera; używa `ManifestGenerator` i `ToolHintsPostProcessor`
+ze startera, więc manifest odrzucany przez gateway zatrzymuje build. `manifest.export.skip=true` w template'cie i serwerach próbnych (`system` spoza `SystemId`);
+`new-server.sh` ustawia `false` dla systemu z listy. `ManifestTest` porównuje definicje narzędzi z pliku z `tools/list` (bez `definitionHash`, który obejmuje typy poświadczeń;
+test ustawia jeden typ, produkcja pełną listę). `tests/new-server-test.sh --build` sprawdza, że pięć serwerów ma plik, a `demo` nie. Z testów usunięte `manifest.output-file`.
+`McpToolsConfiguration.mcpTools` jest publiczne (czyta je eksporter). Wzorzec dla ws-04: skopiować `ManifestExport`, blok `exec-maven-plugin` i właściwość `manifest.export.skip=false`
+z wygenerowanego serwera (albo przenieść różnicą z `new-server.sh jira /tmp/ref`); nową klasę narzędzi dopisać i w `McpToolsConfiguration`, i w `ManifestExport.manifest()` (eksporter tworzy je z `null` zamiast zależności).
+`./mvnw clean verify` w template'cie: 70 testów, 9 pominiętych; `--build`: 0 błędów.
+
 ## M4c: beta-7 -> beta-8 (2026-10-29)
 
 Podbicie na 3.0.0-beta-8; commit osobny. Template: `ExampleSearchQuery` (Jira, Confluence) używa `scope.narrowedTo(List.of(projekt))` zamiast filtrowania wierszy po

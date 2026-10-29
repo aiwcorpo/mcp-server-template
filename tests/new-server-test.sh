@@ -69,6 +69,11 @@ check "template unchanged" test "$before" == "$(git -C "$template" status --porc
 if [[ "${1:-}" == "--build" ]]; then
     for generated in relative-jira gitlab confluence servicedesk opensearch demo; do
         check "generated $generated builds and passes its tests" bash -c "cd '$work/$generated' && git init -q && ./mvnw -B -q verify >'$work/build-$generated.log' 2>&1"
+        if [[ "$generated" == "demo" ]]; then
+            check "trial server writes no manifest" test ! -e "$work/$generated/mcp-app/target/mcp-manifest.json"
+        else
+            check "generated $generated writes the manifest in the build" test -s "$work/$generated/mcp-app/target/mcp-manifest.json"
+        fi
     done
 fi
 

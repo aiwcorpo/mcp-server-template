@@ -80,7 +80,7 @@ class GetRecordToolTest extends ServerTestSupport {
             McpSchema.CallToolResult result = call(client, "get_record", Map.of("recordId", StubBackend.NO_PROJECT));
 
             assertThat(result.isError()).isTrue();
-            assertThat(text(result)).contains("\"error\":\"internal_error\"");
+            assertThat(text(result)).contains(resolverFault("internal_error"));
         }
     }
 
@@ -176,9 +176,13 @@ class GetRecordToolTest extends ServerTestSupport {
             McpSchema.CallToolResult result = call(client, "get_record", Map.of("recordId", StubBackend.BAD_JSON));
 
             assertThat(result.isError()).isTrue();
-            assertThat(text(result)).contains("\"error\":\"internal_error\"").doesNotContain(StubBackend.BODY_MARKER);
+            assertThat(text(result)).contains(resolverFault("internal_error")).doesNotContain(StubBackend.BODY_MARKER);
         }
-        assertThat(output.getAll()).contains("BackendResponseException").doesNotContain(StubBackend.BODY_MARKER);
+        assertThat(output.getAll()).doesNotContain(StubBackend.BODY_MARKER);
+        if (!SampleScope.ONLY_GRANTED_PROJECTS) {
+            // For a service account the platform logs only the uniform denial, not the cause.
+            assertThat(output.getAll()).contains("BackendResponseException");
+        }
     }
 
     @Test
@@ -186,7 +190,7 @@ class GetRecordToolTest extends ServerTestSupport {
         try (McpSyncClient client = clientWithCredential(PAT)) {
             McpSchema.CallToolResult result = call(client, "get_record", Map.of("recordId", StubBackend.NO_ID));
 
-            assertThat(text(result)).contains("\"error\":\"internal_error\"");
+            assertThat(text(result)).contains(resolverFault("internal_error"));
         }
     }
 
@@ -195,7 +199,7 @@ class GetRecordToolTest extends ServerTestSupport {
         try (McpSyncClient client = clientWithCredential(PAT)) {
             McpSchema.CallToolResult result = call(client, "get_record", Map.of("recordId", StubBackend.REDIRECT));
 
-            assertThat(text(result)).contains("\"error\":\"internal_error\"");
+            assertThat(text(result)).contains(resolverFault("internal_error"));
             assertThat(BACKEND.elsewhereHits()).as("the credential must not follow the Location").isEmpty();
         }
     }
@@ -206,7 +210,7 @@ class GetRecordToolTest extends ServerTestSupport {
             long start = System.nanoTime();
             McpSchema.CallToolResult result = call(client, "get_record", Map.of("recordId", StubBackend.SLOW));
 
-            assertThat(text(result)).contains("\"error\":\"upstream_unavailable\"");
+            assertThat(text(result)).contains(resolverFault("upstream_unavailable"));
             assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(Duration.ofMillis(StubBackend.SLOW_MILLIS));
         }
     }
@@ -216,7 +220,7 @@ class GetRecordToolTest extends ServerTestSupport {
         try (McpSyncClient client = clientWithCredential(PAT)) {
             McpSchema.CallToolResult result = call(client, "get_record", Map.of("recordId", StubBackend.HUGE));
 
-            assertThat(text(result)).contains("\"error\":\"internal_error\"");
+            assertThat(text(result)).contains(resolverFault("internal_error"));
         }
     }
 
@@ -226,7 +230,7 @@ class GetRecordToolTest extends ServerTestSupport {
             McpSchema.CallToolResult result = call(client, "get_record", Map.of("recordId", StubBackend.FAILING));
 
             assertThat(result.isError()).isTrue();
-            assertThat(text(result)).contains("\"error\":\"internal_error\"").doesNotContain("example-pat");
+            assertThat(text(result)).contains(resolverFault("internal_error")).doesNotContain("example-pat");
         }
         assertThat(output.getAll()).contains("\"tool\":\"get_record\"").doesNotContain("example-pat")
                 .as("the backend's error body stays out of the log").doesNotContain("boom");

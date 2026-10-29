@@ -19,7 +19,7 @@ import tools.jackson.databind.json.JsonMapper;
 /** What the tool class checks itself and what its schemas publish; the policy and the wire are tested in mcp-app. */
 class ExampleToolTest {
 
-    private final ExampleTool tool = new ExampleTool((query, project) -> List.of(), null);
+    private final ExampleTool tool = new ExampleTool(query -> List.of(), null);
 
     @Test
     void searchRejectsABlankOrTooLongTextWithAFixedMessage() {

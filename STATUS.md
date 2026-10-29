@@ -12,6 +12,22 @@ Starter (stan sprzed M4): BOM `pl.aiwcorpo.mcp:mcp-platform-bom:3.0.0-beta-4` (k
 2.0.0, Java 25). Commity: 7f65f8f (M1), c799e54, c1258c4, 83b9f3c (alpha-10), 00f87f4, 80603f4 (alpha-11), następnie M3
 (patrz `git log`). Wyszukiwanie nie przyjmuje od modelu JQL/CQL: `ExampleSearchQuery` buduje zapytanie przez `StructuredQuery`.
 
+## M4c: beta-7 -> beta-8 (2026-10-29)
+
+Podbicie na 3.0.0-beta-8; commit osobny. Template: `ExampleSearchQuery` (Jira, Confluence) używa `scope.narrowedTo(List.of(projekt))` zamiast filtrowania wierszy po
+odpowiedzi; cofnięte `ExampleRecordHit.project` i zawężanie w `ExampleService`. Argument `project` zostaje bez `@ResourceRef` (starter wymaga wtedy resolvera typu
+kontenera `Jira::Project`/`Confluence::Space` i start się nie udaje; link na inne projekty ma dawać pusty wynik). Odstępstwo od zalecenia z MIGRATION ("ids z argumentu
+`@ResourceRef`"): `narrowedTo` waliduje wzorzec identyfikatora i tylko zawęża, a hity filtruje `ResultFilter`; jeśli serwer doda resolver kontenera, może dodać `@ResourceRef`.
+
+Testy: zasób spoza linku to `not_found_or_denied` (nie `access_denied`; asercja `doesNotContain("access_denied")`); nowy test, że użytkownik bez grupy zakresu czyta
+rekord prawami systemu (`READ_REQUIRES_SCOPE` false: Jira, Confluence, GitLab; true dla konta serwisowego Service Desku i OpenSearch). Konto serwisowe: błąd resolvera i
+awaria systemu to `not_found_or_denied` (`resolverFault`). Confluence: przestrzeń `ENG` z grupą `mcp-confluence-space-ENG` zostaje, ale tylko dlatego, że reguła
+`vs-narrow-confluence-page` (link) porównuje z `resource.scopes`; czytanie bez linku grupy nie wymaga. OpenSearch: `OPENSEARCH_RESOLVE_PARAMETERS` w całości.
+`./mvnw clean verify`: 69 testów, 9 pominiętych (jak wyżej); `tests/new-server-test.sh --build`: 0 błędów.
+
+Dla ws-04: Jira/Confluence `narrowedTo` zamiast filtra wierszy; testy zasobu spoza linku na `not_found_or_denied`; Service Desk: awaria resolvera to `not_found_or_denied`;
+Confluence z linkiem w testach nadal potrzebuje grupy zakresu przestrzeni.
+
 ## M4b: beta-6 -> beta-7, kontrakty 4.1.0 (2026-10-29)
 
 Wg MIGRATION "Z beta-6 na beta-7"; commit osobny od M4. `./mvnw clean verify`: 69 testów, 9 pominiętych (jak niżej: 8 `ManifestTest` + 1 `QUERY_CARRIES_LINK`);

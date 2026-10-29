@@ -118,6 +118,15 @@ abstract class ServerTestSupport {
         }
     }
 
+    /**
+     * The error text for a failure of the system while the resource is resolved. For a service account (Service Desk)
+     * the platform answers {@code not_found_or_denied} to every such failure: a fault of the system must not tell
+     * whether the ticket exists.
+     */
+    static String resolverFault(String code) {
+        return "\"error\":\"" + (SampleScope.ONLY_GRANTED_PROJECTS ? "not_found_or_denied" : code) + "\"";
+    }
+
     /** A real server's system is one of the contracts'; a trial one is not. */
     @Test
     void contractSystemIsKnown() {

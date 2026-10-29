@@ -24,18 +24,18 @@ class ExampleServiceTest {
                 seen[0] = indices;
                 seen[1] = text;
                 seen[2] = limit;
-                return List.of(new ExampleRecordHit("logs-a-1", "logs-a", "First"));
+                return List.of(new ExampleRecordHit("logs-a-1", "First"));
             }
         });
 
-        assertThat(service.searchRecords(List.of("logs-a-1"), "\"q\"")).containsExactly(new ExampleRecordHit("logs-a-1", "logs-a", "First"));
+        assertThat(service.searchRecords(List.of("logs-a-1"), "\"q\"")).containsExactly(new ExampleRecordHit("logs-a-1", "First"));
         assertThat(seen).containsExactly(List.of("logs-a-1"), "\"q\"", ExampleUseCase.MAX_HITS);
     }
 
     @Test
     void cutsAnAnswerLongerThanTheLimitWhateverTheBackendDid() {
         List<ExampleRecordHit> many = IntStream.range(0, ExampleUseCase.MAX_HITS + 10)
-                .mapToObj(i -> new ExampleRecordHit("logs-a-" + i, "logs-a", "t")).toList();
+                .mapToObj(i -> new ExampleRecordHit("logs-a-" + i, "t")).toList();
         ExampleService service = new ExampleService(new StubPort() {
             @Override
             public List<ExampleRecordHit> search(List<String> indices, String text, int limit) {

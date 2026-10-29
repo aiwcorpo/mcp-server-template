@@ -41,6 +41,12 @@ final class SampleScope {
      */
     static final boolean UNCLASSIFIED_OUTSIDE_SCOPE = true;
 
+    /**
+     * Whether reading needs a scope in the policy bundle even for a caller with the read group: the service account of
+     * Service Desk and OpenSearch, whose system does not apply the user's rights. Elsewhere the read group is enough.
+     */
+    static final boolean READ_REQUIRES_SCOPE = false;
+
     /** Groups of the test caller besides the read group: grants the policy needs to read anything (OpenSearch). */
     static final List<String> EXTRA_GROUPS = List.of("mcp-confluence-space-ENG");
 

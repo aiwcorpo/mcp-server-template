@@ -1,6 +1,6 @@
 # mcp-example: serwer MCP platformy
 
-Serwer MCP dla systemu `example`, zbudowany na `mcp-platform-starter` 3.0.0-beta-7 (Java 25, Spring Boot
+Serwer MCP dla systemu `example`, zbudowany na `mcp-platform-starter` 3.0.0-beta-8 (Java 25, Spring Boot
 4.1.0, Spring AI 2.0.0, kontrakty `mcp-contracts` 4.1.0). Stoi wyłącznie za gateway'em platformy: przyjmuje
 ruch tylko po mTLS z wewnętrznym JWT gateway'a (C2), a do systemu docelowego woła z poświadczeniem
 użytkownika, które gateway dołącza do każdego żądania (C3). Bez poprawnego JWT odpowiada 401, nie ma trybu
@@ -53,9 +53,10 @@ zapytanie przez `scope.jql(pola).where(pole, operator, wartość).build()` (Conf
 zawężenie z linku (`project in (...)`) i cytuje każdą wartość, więc cudzysłów ani nawias w tekście nie zmienia
 zapytania. Pola i operatory są normatywne (CC-160): warunki JQL to `text`, `status`, `assignee`, `summary`, CQL `text`,
 `title`, `label`; operatory `EQUALS`, `CONTAINS`, `NOT_EQUALS` z jedną wartością; `ORDER BY` z `created`, `updated`,
-`priority`, `key` (CQL: `created`, `lastmodified`, `title`). Projekt ani przestrzeń nie są polami warunku, dlatego
-`ExampleService` zawęża wiersze do żądanego zakresu po odpowiedzi systemu (limit z systemu liczy wiersze wszystkich
-projektów, które użytkownik widzi). Zapytanie ma postać `(warunki) AND project in (...)`. Systemy bez budowniczego w starterze (GitLab, service desk) sprawdzają zakres ręcznie (`linkIds()`), a gdzie system nie
+`priority`, `key` (CQL: `created`, `lastmodified`, `title`). Projekt ani przestrzeń nie są polami warunku: żądany zakres wchodzi do części zakresowej zapytania przez
+`scope.narrowedTo(List.of(projekt))` (przecięcie z linkiem; puste przecięcie to pusty wynik bez wywołania systemu), więc
+zapytanie ma postać `(warunki) AND project in ("DEF")`. Argument nie jest `@ResourceRef` (to wymagałoby resolvera typu
+kontenera, a link na inne projekty ma dać pusty wynik, nie błąd); hity i tak przechodzą przez `ResultFilter`. Systemy bez budowniczego w starterze (GitLab, service desk) sprawdzają zakres ręcznie (`linkIds()`), a gdzie system nie
 stosuje praw użytkownika (service desk z kontem serwisowym) pytają tylko o kolejki z `grantedIds()`; `nothingToQuery()`
 oznacza: zwróć pusty wynik bez wywołania systemu. OpenSearch nie wysyła wzorców `p-*` do wyszukiwania: wzorce zakresu
 (`opensearchIndexExpression()`) idą wyłącznie do `GET _resolve/index/` z `OPENSEARCH_RESOLVE_PARAMETERS` (odpowiedź 404 to
@@ -242,14 +243,14 @@ metryka `mcp_server_devstack_active` ma wartość 1. Bez obu zgód albo z drugim
 | --- | --- |
 | `GetRecordToolTest` | poświadczenie z C3 dociera do systemu; typ poświadczenia spoza listy serwera daje `internal_error` bez wywołania systemu; jedno wywołanie na rekord; `readOnlyHint`, tytuł, zamknięty schemat, `maxLength` i `pattern`; brak poświadczenia i 401 systemu -> `credential_required`; 404 i 403 -> ten sam `not_found_or_denied`; zły `recordId` nie dociera do systemu i nie wraca w błędzie; nieczytelna odpowiedź 200 i rekord bez `id` -> `internal_error` bez treści w logu; przekierowanie nie jest wykonywane; timeout -> `upstream_unavailable`; za duża odpowiedź ucięta; poświadczenie nie trafia do wyniku ani logu |
 | `ResourcePolicyTest` | rekord w projekcie `restricted` i rekord przeniesiony do takiego projektu dają `not_found_or_denied` identyczne jak nieistniejący; rekord z nieznaną klasyfikacją nie jest wydawany (`internal_error`, kontrakt; użytkownik bez grantu dostaje `not_found_or_denied` przed resolverem); każda odmowa ma stały tekst `ToolErrorCode.NOT_FOUND_OR_DENIED_MESSAGE`; `access_denied` bez grupy i bez wywołania systemu; link zawężony do innego projektu ukrywa rekord; awaria systemu to nie odmowa |
-| `SearchRecordsToolTest` | wyniki bez rekordów zastrzeżonych i przeniesionych; link zawężony do jednego projektu nie zwraca rekordów spoza niego i jest w zapytaniu; wyszukiwanie poza linkiem jest puste; wiersze innych projektów niż żądany są usuwane; kolejka bez grantu nie jest pytana (Service Desk); cudzysłów w tekście od modelu zostaje literałem; hity rozwiązane jednym wywołaniem; `credential_required`, `access_denied`, błędne argumenty |
+| `SearchRecordsToolTest` | wyniki bez rekordów zastrzeżonych i przeniesionych; link zawężony do jednego projektu nie zwraca rekordów spoza niego i jest w zapytaniu; wyszukiwanie poza linkiem jest puste; zapytanie zawężone do żądanego projektu i linku; kolejka bez grantu nie jest pytana (Service Desk); cudzysłów w tekście od modelu zostaje literałem; hity rozwiązane jednym wywołaniem; `credential_required`, `access_denied`, błędne argumenty |
 | `ManifestTest` | manifest przechodzi reguły gateway'a, definicje równe `tools/list` (zgodny `definitionHash`), tytuły i zamknięte schematy, `resourceRefs`, 401 bez JWT; artefakt budowy `target/mcp-manifest.json` równy manifestowi serwera; bez `environment` poza `devstack`, `acceptedTypes` z typem systemu |
 | `GatewayOnlyAccessTest` | bez JWT 401 (`tools/call`, `ping`, `initialize`), JWT dla innego serwera, innego narzędzia, wariant serwisowy i przeterminowany -> 401; bez JWT tylko health; system zgodny z `SystemId` (albo jawnie próbny) |
 | `ProductionConfigurationTest` | typ domyślny jest pierwszym z `accepted-credential-types` (baza i `dev`), brak `credential-type`; konfiguracja bazowa: `client-auth: need`, paczka polityk i manifest wymagane, bez kluczy testowych; klucze testowe i repozytorium polityk dev tylko w `application-dev.yml`; backend `http` poza `dev` odrzucony (chyba że jawnie dopuszczony); `dev` na 127.0.0.1 |
 | `IndexResolutionTest` (tylko serwer OpenSearch) | wzorce zakresu idą tylko do `_resolve/index`, wyszukiwanie dostaje nazwy bez aliasu i parametry listy nazw, link na inny prefiks i brak grantu nie wołają systemu |
 | `DevProfileLoopbackTest` | reguła adresu `dev` (`assertDevProfileLoopbackRule`) i obecność guardów w kontekście serwera (`assertServerIsGuarded`) |
 | `ExampleToolTest` | walidacja tekstu wyszukiwania (stały komunikat), limity i zamknięte schematy obu narzędzi, `get_record` z kontekstem z `TestResourceContext` |
-| `ExampleServiceTest` | limit wyników i zawężenie do żądanego projektu bez Springa |
+| `ExampleServiceTest` | limit wyników wyszukiwania bez Springa |
 
 Nowe narzędzie dostaje test w tym samym stylu: klasa dziedziczy po `ServerTestSupport`, odpowiedź systemu
 dopisuje się w `StubBackend`. Polityka w testach to paczka z przykładów kontraktów (`TestGateway`; dla serwera spoza pięciu systemów

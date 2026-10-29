@@ -11,7 +11,7 @@ public interface ExampleUseCase {
 
     /**
      * Rows of a query the tool built from the scope of the policy and the values of the model, at most
-     * {@link #MAX_HITS}, of the requested {@code project} only. The backend limits the rest to the user's own rights.
+     * {@link #MAX_HITS}. The backend limits the rest to the user's own rights.
      */
-    List<ExampleRecordHit> searchRecords(String query, String project);
+    List<ExampleRecordHit> searchRecords(String query);
 }

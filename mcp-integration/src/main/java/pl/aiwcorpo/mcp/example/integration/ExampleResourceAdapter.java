@@ -83,7 +83,7 @@ public class ExampleResourceAdapter implements ExampleResourcePort {
             if (id == null || id.isBlank()) {
                 throw new BackendResponseException("hit without id");
             }
-            return new ExampleRecordHit(id, project, title);
+            return new ExampleRecordHit(id, title);
         }
     }
 

@@ -95,7 +95,7 @@ template'u (`ExampleResourceDescription`); wektory kontraktów: `server-gitlab-*
 
   CQL: warunki `text`, `title`, `label`, `ORDER BY` `created`, `lastmodified`, `title`. Filtra po liście wartości ani po
   polu spoza list nie ma; zakres (projekt, przestrzeń) nie jest polem warunku, więc zakres żądany przez model
-  zawęża wiersze po odpowiedzi systemu (`ExampleService`), a link wirtualnego serwera dokleja starter. Zmiana list wymaga
+  wchodzi do zapytania przez `scope.narrowedTo(List.of(projekt))` (przecięcie z linkiem, `jql(...)`/`cql(...)` renderuje je po warunkach), a link wirtualnego serwera dokleja starter. Zmiana list wymaga
   zmiany kontraktu.
 
   Nie przyjmuj od modelu tekstu JQL ani CQL (`restrictJql` nie istnieje od beta-2): jeśli produkt wymaga języka zapytań

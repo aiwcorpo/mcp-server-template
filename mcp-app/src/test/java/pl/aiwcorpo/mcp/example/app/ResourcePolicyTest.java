@@ -78,6 +78,19 @@ class ResourcePolicyTest extends ServerTestSupport {
     }
 
     @Test
+    void aUserWithoutAScopeGroupReadsByTheRightsTheSystemGivesThem() {
+        try (McpSyncClient client = clientWithToken(user -> user.username("jkowalski").groups(List.of(READ_GROUP)), PAT)) {
+            McpSchema.CallToolResult result = call(client, "get_record", Map.of("recordId", StubBackend.OPEN_1));
+
+            // Where the system ignores the user's rights (service account, token with FLS only) the scopes of the bundle decide.
+            assertThat(result.isError()).isEqualTo(SampleScope.READ_REQUIRES_SCOPE);
+            if (SampleScope.READ_REQUIRES_SCOPE) {
+                assertThat(text(result)).contains(NOT_FOUND_OR_DENIED);
+            }
+        }
+    }
+
+    @Test
     void aLinkThatNarrowsToAnotherProjectHidesTheRecord() {
         try (McpSyncClient client = clientWithToken(
                 user -> { reader(user); user.virtualServer("def-only", Map.of(SampleScope.LINK_KEY, List.of(SampleScope.OTHER_PROJECT))); }, PAT)) {
@@ -86,7 +99,8 @@ class ResourcePolicyTest extends ServerTestSupport {
 
             assertThat(inside.isError()).isEqualTo(SampleScope.ONLY_GRANTED_PROJECTS);
             assertThat(outside.isError()).isTrue();
-            assertThat(text(outside)).contains(NOT_FOUND_OR_DENIED);
+            assertThat(text(outside)).as("outside the link: the answer for a missing record, not access_denied")
+                    .contains(NOT_FOUND_OR_DENIED).doesNotContain("access_denied");
         }
     }
 
@@ -96,7 +110,9 @@ class ResourcePolicyTest extends ServerTestSupport {
             McpSchema.CallToolResult result = call(client, "get_record", Map.of("recordId", StubBackend.FAILING));
 
             assertThat(result.isError()).isTrue();
-            assertThat(text(result)).doesNotContain(NOT_FOUND_OR_DENIED);
+            if (!SampleScope.ONLY_GRANTED_PROJECTS) {
+                assertThat(text(result)).doesNotContain(NOT_FOUND_OR_DENIED);
+            }
         }
     }
 }

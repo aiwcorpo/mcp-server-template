@@ -48,7 +48,7 @@ check "no template-only files" test ! -e "$work/relative-jira/new-server.sh" -a 
 for ci_file in ci/run.sh Makefile .gitlab-ci.yml Jenkinsfile .github/workflows/ci.yml .ci/settings.xml .ci/settings-anonymous.xml; do
     check "generated server has $ci_file" test -s "$work/relative-jira/$ci_file"
 done
-check "ci/run.sh is executable and names the generated image" bash -c "test -x '$work/relative-jira/ci/run.sh' && grep -q 'mcp-jira:' '$work/relative-jira/ci/run.sh' && grep -q 'mcp-jira.jar' '$work/relative-jira/ci/run.sh'"
+check "ci/run.sh is executable and names the generated image" bash -c "test -x '$work/relative-jira/ci/run.sh' && grep -q 'mcp-server-jira:' '$work/relative-jira/ci/run.sh' && grep -q 'mcp-jira.jar' '$work/relative-jira/ci/run.sh'"
 check "ci/run.sh refuses an unknown step" bash -c "cd '$work/relative-jira' && ci/run.sh bogus >/dev/null 2>&1; test \$? -eq 2"
 check "jira keeps the template's resource model" grep -q 'Jira::Issue' \
     "$work/relative-jira/mcp-core/src/main/java/pl/aiwcorpo/mcp/jira/core/domain/JiraResourceModel.java"
@@ -73,7 +73,7 @@ check "template unchanged" test "$before" == "$(git -C "$template" status --porc
 
 if [[ "${1:-}" == "--build" ]]; then
     for generated in relative-jira gitlab confluence servicedesk opensearch demo; do
-        check "generated $generated builds and passes its tests" bash -c "cd '$work/$generated' && git init -q && ./mvnw -B -q verify >'$work/build-$generated.log' 2>&1"
+        check "generated $generated builds and passes ci/run.sh verify (tests, floors, manifest)" bash -c "cd '$work/$generated' && git init -q && ci/run.sh verify >'$work/build-$generated.log' 2>&1"
         check "generated $generated passes ci/run.sh hygiene" bash -c "cd '$work/$generated' && ci/run.sh hygiene >/dev/null 2>&1"
         if [[ "$generated" == "demo" ]]; then
             check "trial server writes no manifest" test ! -e "$work/$generated/mcp-app/target/mcp-manifest.json"

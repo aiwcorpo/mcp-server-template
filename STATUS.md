@@ -384,3 +384,7 @@ Uruchomienia procesu hosta nie robiłem (testy idą przez `TestGateway` i stub b
 - Dowód: `ci/run.sh verify` 57 przypadków uruchomionych (9 pominięte: `ManifestTest` w template'cie, jeden warunkowy);
   `tests/new-server-test.sh --build` 0 błędów (jira, gitlab, confluence, servicedesk, opensearch, demo, w tym hygiene wygenerowanych).
 M5: osiągnięty (2026-10-31) - template na beta-10 i kontraktach 5.1.0, CI ci/run.sh
+
+Poprawki po przeglądzie serwerów (2026-10-31): hygiene nie przechodzi przy błędzie git/xargs/perl; liczniki testów per moduł
+(`CI_TEST_MODULES`, `CI_APP_MIN_TESTS`); krok `generator` (`tests/new-server-test.sh --build`) w CI szablonu; tag obrazu
+`mcp-server-<system>:<prefiks>-<sha7>`; `ManifestTest` porównuje hash (gdy listy typów są równe) i wersję z pom; GitHub: Environment `ci-main`, checkout przypięty do SHA.

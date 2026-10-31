@@ -9,7 +9,7 @@ pipeline {
       when { changeRequest() }
       agent { docker { image 'maven:3.9.12-eclipse-temurin-25' } }
       steps {
-        sh 'ci/run.sh verify'
+        sh 'git config --global --add safe.directory "$WORKSPACE" && ci/run.sh verify'
       }
       post {
         always {
@@ -23,7 +23,7 @@ pipeline {
       steps {
         withCredentials([usernamePassword(credentialsId: 'mcp-maven-registry',
             usernameVariable: 'MCP_MAVEN_REPOSITORY_USER', passwordVariable: 'MCP_MAVEN_REPOSITORY_PASSWORD')]) {
-          sh 'ci/run.sh verify'
+          sh 'git config --global --add safe.directory "$WORKSPACE" && ci/run.sh verify'
         }
         stash name: 'build', includes: 'mcp-app/target/mcp-*.jar,mcp-app/target/mcp-manifest.json'
       }
@@ -33,13 +33,21 @@ pipeline {
         }
       }
     }
+    stage('generator (template only)') {
+      when { allOf { expression { fileExists('tests/new-server-test.sh') }; anyOf { changeRequest(); branch 'main' } } }
+      agent { docker { image 'maven:3.9.12-eclipse-temurin-25'; args '-u root' } }
+      steps {
+        sh 'apt-get update -qq && apt-get install -y -qq python3 unzip perl git'
+        sh 'git config --global --add safe.directory "$WORKSPACE" && ci/run.sh generator'
+      }
+    }
     stage('image (main)') {
       when { branch 'main' }
       agent { docker { image 'docker:27-cli'; args '-v /var/run/docker.sock:/var/run/docker.sock -u root' } }
       steps {
         sh 'apk add --no-cache bash git'
         unstash 'build'
-        sh 'ci/run.sh image'
+        sh 'git config --global --add safe.directory "$WORKSPACE" && ci/run.sh image'
       }
     }
   }

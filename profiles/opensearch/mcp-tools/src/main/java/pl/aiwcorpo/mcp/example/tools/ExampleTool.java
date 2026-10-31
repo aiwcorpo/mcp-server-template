@@ -61,11 +61,10 @@ public class ExampleTool {
     }
 
     /**
-     * The model names an index prefix and a text, never a query. The scope of the policy (grants of the caller, the
-     * narrowing of the link) is turned into the concrete index names it covers by {@link ExampleSearchQuery}, aliases
+     * The model names an index prefix and a text, never a query. The scope of the policy (the grants of the caller) is turned into the concrete index names it covers by {@link ExampleSearchQuery}, aliases
      * and data streams excluded, and the search goes to those names, not to a pattern: a pattern such as
      * {@code logs-team-a-*} also matches an alias that can point at the indices of another team. The prefix is not a
-     * {@code @ResourceRef} on purpose, because a link that narrows the virtual server to other prefixes must give an
+     * {@code @ResourceRef} on purpose, because a prefix the caller is not granted must give an
      * empty search, not an error that tells which prefixes exist. The hits are filtered afterwards by their
      * {@code @ResourceRef} component.
      */

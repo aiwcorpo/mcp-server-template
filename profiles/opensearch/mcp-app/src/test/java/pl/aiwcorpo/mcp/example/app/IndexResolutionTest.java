@@ -82,20 +82,6 @@ class IndexResolutionTest extends ServerTestSupport {
     }
 
     @Test
-    void aLinkOnAnotherPrefixLeavesNothingToAskFor() {
-        try (McpSyncClient client = clientWithToken(user -> {
-            reader(user);
-            user.virtualServer("team-b-only", Map.of(SampleScope.LINK_KEY, List.of(SampleScope.OTHER_PROJECT)));
-        }, PAT)) {
-            McpSchema.CallToolResult result = call(client, "search_records", search(SampleScope.OPEN_PROJECT));
-
-            assertThat(result.isError()).isFalse();
-            assertThat(text(result)).contains("\"hits\":[]");
-            assertThat(BACKEND.indexSearches()).isEmpty();
-        }
-    }
-
-    @Test
     void aCallerWithNoIndexGrantDoesNotReachTheSystem() {
         try (McpSyncClient client = clientWithToken(user -> user.username("jkowalski").groups(List.of(READ_GROUP)), PAT)) {
             McpSchema.CallToolResult result = call(client, "search_records", search(SampleScope.OPEN_PROJECT));

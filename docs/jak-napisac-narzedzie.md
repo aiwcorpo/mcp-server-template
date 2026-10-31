@@ -80,8 +80,8 @@ template'u (`ExampleResourceDescription`); wektory kontraktów: `server-gitlab-*
 
 - Model podaje wartości (zakres: projekt, przestrzeń, grupa, prefiks indeksu; tekst; ograniczone filtry), serwer
   buduje zapytanie. Zakres jest argumentem obowiązkowym i nie ma globalnego wyszukiwania.
-- `policy.queryScope(typ)` (`ResourcePolicy` wstrzyknięte w konstruktorze) daje zawężenie z linku wirtualnego
-  serwera (`linkIds()`) i zakresy z grup (`grantedIds()`, `grantsNothing()`). JQL i CQL buduje `StructuredQuery`: pola
+- `policy.queryScope(typ)` (`ResourcePolicy` wstrzyknięte w konstruktorze) daje zakresy z grup (`grantedIds()`,
+  `grantsNothing()`); zawężenie do argumentu dodaje `narrowedTo(...)`. JQL i CQL buduje `StructuredQuery`: pola
   z list normatywnych kontraktu (CC-160; serwer może dopuścić mniej pól, nigdy więcej), operatory `EQUALS`, `CONTAINS`,
   `NOT_EQUALS` z jedną wartością, tylko `AND`, wartości zawsze w cudzysłowach (znak sterujący jest odrzucany):
 
@@ -95,7 +95,7 @@ template'u (`ExampleResourceDescription`); wektory kontraktów: `server-gitlab-*
 
   CQL: warunki `text`, `title`, `label`, `ORDER BY` `created`, `lastmodified`, `title`. Filtra po liście wartości ani po
   polu spoza list nie ma; zakres (projekt, przestrzeń) nie jest polem warunku, więc zakres żądany przez model
-  wchodzi do zapytania przez `scope.narrowedTo(List.of(projekt))` (przecięcie z linkiem, `jql(...)`/`cql(...)` renderuje je po warunkach), a link wirtualnego serwera dokleja starter. Zmiana list wymaga
+  wchodzi do zapytania przez `scope.narrowedTo(List.of(projekt))` (`jql(...)`/`cql(...)` renderuje je po warunkach). Zmiana list wymaga
   zmiany kontraktu.
 
   Nie przyjmuj od modelu tekstu JQL ani CQL (`restrictJql` nie istnieje od beta-2): jeśli produkt wymaga języka zapytań
@@ -106,15 +106,15 @@ template'u (`ExampleResourceDescription`); wektory kontraktów: `server-gitlab-*
   Narzędzie z indeksem jako argumentem woła `scope.resolveIndexArgument(argument, odpowiedz)` (`invalid_argument` dla
   wzorca, listy, `_all` i nazwy z kropką; alias, indeks poza zakresem i nieznany to `not_found_or_denied`). Wzór:
   profil `opensearch` (`ExampleSearchQuery.indices`, `ExampleResourceAdapter.resolveIndices`). Gdzie system sam stosuje prawa
-  użytkownika (Jira, Confluence, GitLab z jego tokenem), wystarcza link; gdzie nie (OpenSearch, konto serwisowe Service Desku),
+  użytkownika (Jira, Confluence, GitLab z jego tokenem), wystarcza zapytanie z żądanego projektu; gdzie nie (OpenSearch, konto serwisowe Service Desku),
   zapytanie ogranicza się do `grantedIds()` (kolejki konta serwisowego wynikają wyłącznie z paczki polityk, nie z
   konfiguracji serwera), a **puste `grantsNothing()` oznacza: nie wykonuj zapytania**. Wyszukiwanie
-  poza linkiem to pusty wynik, nie błąd: błąd mówiłby, jakie zakresy istnieją. Wzór: `ExampleTool.searchRecords`.
+  poza grantami to pusty wynik, nie błąd: błąd mówiłby, jakie zakresy istnieją. Wzór: `ExampleTool.searchRecords`.
   Wartości od modelu wchodzą do zapytania wyłącznie przez `StructuredQuery`, cytowane identyfikatory
   (`QueryScope.quote`) albo zmienne szablonu URI, nigdy sklejane. Miejsce w kodzie: `ExampleSearchQuery`.
 - `ResultFilter`: rekord wyniku z komponentem `@ResourceRef` (`ExampleSearchView.Hit.id`) jest sprawdzany po
   wykonaniu narzędzia, a elementy listy, których polityka nie dopuszcza, znikają z wyniku. Usuwa to rekordy powiązane
-  w wyszukiwaniu z innych projektów (link zawężony do `ABC` nie pokazuje zgłoszenia z `DEF`), zastrzeżone i
+  w wyszukiwaniu z innych projektów (szukanie w `ABC` nie pokazuje zgłoszenia z `DEF`), zastrzeżone i
   przeniesione. Liczniki z systemu (`total`) nie są poprawiane po filtrowaniu: nie zwracaj ich. Lista dłuższa niż `tools.max-filtered-elements` (200) kończy wywołanie `internal_error`: zwracaj strony. Wynik bez zasobów, którego platforma nie umie obejrzeć (`Map`, `JsonNode`, klasa niebędąca rekordem), wymaga `@ResultWithoutResources`; rekord z `@ResourceRef` nie może mieć adnotacji Jacksona na komponentach. `@ResourceRef` na komponencie rekordu będącego argumentem zatrzymuje start: identyfikator zasobu to osobny parametr. Wynik innego kształtu
   filtruje `policy.retainAllowedById(typ, elementy, Element::id)` albo `retainAllowed(...)`.
 
@@ -122,13 +122,13 @@ template'u (`ExampleResourceDescription`); wektory kontraktów: `server-gitlab-*
 
 Metoda, która czyta `ResourceContext.required().fetched(...)`, rzuca poza wywołaniem platformy. W teście jednostkowym otwórz
 kontekst: `TestResourceContext.open("get_record", Map.of("recordId", "ABC-1")).withFetched(typ, "ABC-1", rekord, null)` (w
-`try`, `mcp-platform-test` w zakresie `test`). Politykę (odmowy, linki, grupy) sprawdza się przez klienta MCP z `TestGateway`
+`try`, `mcp-platform-test` w zakresie `test`). Politykę (odmowy, grupy) sprawdza się przez klienta MCP z `TestGateway`
 (`ResourcePolicyTest`), nie przez bezpośrednie wywołanie metody.
 
 ## Serwer przykładowy i testy
 
 `TestGateway.start("mcp-example")` publikuje paczkę z regułami z przykładów kontraktów (`call`, odczyt, zapis w zakresie,
-`restricted`, zawężenie linku) dla grup `mcp-example-read|write|destructive`, więc testy template'u działają na `mcp-example`.
+`restricted`) dla grup `mcp-example-read|write|destructive`, więc testy template'u działają na `mcp-example`.
 Serwer spoza pięciu systemów kontraktów ma jednak manifest odrzucany przez enum `serverId` (`server-manifest.schema.json`): w
 `dev` to ostrzeżenie `event=manifest_rejected_by_rules`, poza `dev` taki serwer nie wstanie. Dlatego wygenerowany `--trial`
 działa tylko w `dev`, `ManifestTest` pomija go (`assumeFalse(TRIAL_SYSTEM)`), a `credential_required` jest w nim

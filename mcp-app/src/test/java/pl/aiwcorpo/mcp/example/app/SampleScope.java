@@ -5,14 +5,11 @@ import pl.aiwcorpo.mcp.platform.security.BackendCredential;
 
 /**
  * What differs between the systems in the tests of the resource policy: how ids look (they must match the contract
- * pattern of the resource type, which the starter checks before any resolver runs), the key of the link narrowing, and
+ * pattern of the resource type, which the starter checks before any resolver runs), and
  * whether an unreported classification is refused. {@code new-server.sh} replaces this file with the one of the
  * generated system; the Jira variant is the template's own.
  */
 final class SampleScope {
-
-    /** Key in the {@code vsc} claim with which a virtual server link narrows the container type (C2). */
-    static final String LINK_KEY = "jiraProjects";
 
     /**
      * Whether a record whose container classification the backend did not report is refused. True where the policy
@@ -50,8 +47,8 @@ final class SampleScope {
     /** Groups of the test caller besides the read group: grants the policy needs to read anything (OpenSearch). */
     static final List<String> EXTRA_GROUPS = List.of();
 
-    /** Whether the server hands the narrowing of a link to the system inside the query (JQL, CQL) instead of checking it itself. */
-    static final boolean QUERY_CARRIES_LINK = true;
+    /** Whether the server hands the requested project to the system inside the query (JQL, CQL) instead of checking it itself. */
+    static final boolean QUERY_CARRIES_PROJECT = true;
 
     static final String OPEN_PROJECT = "ABC";
     static final String OTHER_PROJECT = "DEF";

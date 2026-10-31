@@ -85,17 +85,6 @@ class GetRecordToolTest extends ServerTestSupport {
     }
 
     @Test
-    void acceptsTheVirtualServerClaimsOfACallThroughALink() {
-        try (McpSyncClient client = clientWithToken(
-                user -> { reader(user); user.virtualServer("team-reports", Map.of()); }, PAT)) {
-            McpSchema.CallToolResult result = call(client, "get_record", Map.of("recordId", StubBackend.OPEN_1));
-
-            assertThat(result.isError()).isFalse();
-            assertThat(text(result)).contains("\"id\":\"" + StubBackend.OPEN_1 + "\"");
-        }
-    }
-
-    @Test
     void isListedAsReadOnly() {
         try (McpSyncClient client = clientWithCredential(PAT)) {
             McpSchema.Tool tool = client.listTools().tools().stream()

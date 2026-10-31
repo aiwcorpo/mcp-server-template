@@ -13,7 +13,8 @@
 # types, how a record is described to the policy, test ids) replace their counterparts (files without a counterpart are
 # added), and the credential type of
 # the system goes into the configuration. Template-only files (this
-# script, its test, STATUS.md, docs/nowy-serwer.md, profiles/) are not copied. Afterwards no
+# script, its test, STATUS.md, docs/nowy-serwer.md, profiles/) are not copied. The CI files (ci/run.sh, Makefile,
+# .gitlab-ci.yml, Jenkinsfile, .github/workflows/ci.yml, .ci/) are copied like any other file. Afterwards no
 # "example" may remain; on any failure the target directory is removed.
 set -euo pipefail
 
@@ -159,5 +160,6 @@ Generated mcp-$system in $target$([[ "$trial" == true ]] && echo " (trial: dev p
 Next:
   cd $target && git init
   ./mvnw verify          # JDK 25; builds and runs the tests against TestGateway and a stub backend
+  make ci                # the same through ci/run.sh, the single entry point of the GitLab, Jenkins and GitHub wrappers
 Then replace the sample record domain with the real one (docs/jak-napisac-narzedzie.md).
 EOF

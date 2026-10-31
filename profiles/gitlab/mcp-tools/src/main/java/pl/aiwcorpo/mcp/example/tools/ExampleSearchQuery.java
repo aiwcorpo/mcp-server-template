@@ -1,7 +1,6 @@
 package pl.aiwcorpo.mcp.example.tools;
 
 import java.util.Optional;
-import pl.aiwcorpo.mcp.example.core.domain.ExampleResourceModel;
 import pl.aiwcorpo.mcp.platform.resource.QueryScope;
 
 /**
@@ -9,9 +8,11 @@ import pl.aiwcorpo.mcp.platform.resource.QueryScope;
  * model supplied; the model never supplies a fragment of the query language. {@code new-server.sh} replaces this file
  * with the one of the generated system.
  *
- * <p>GitLab has no query builder in the starter, so the narrowing of the virtual server link is applied here: a project
- * outside the link is not asked for at all. Values are quoted with {@link QueryScope#quote}. The query syntax below is
- * the sample backend's; replace it with the parameters of the real API (the scope check stays).
+ * <p>GitLab has no query builder in the starter and applies the rights of the user's own token, so the query is the
+ * requested group and the text and nothing else; the hits are filtered afterwards by their {@code @ResourceRef}.
+ * {@code scope} is not read here; a system that must limit the query to grants reads it as the service desk does.
+ * Values are quoted with {@link QueryScope#quote}. The query syntax below is the sample backend's; replace it with the
+ * parameters of the real API.
  */
 final class ExampleSearchQuery {
 
@@ -20,10 +21,6 @@ final class ExampleSearchQuery {
 
     /** Empty when there is nothing to ask the system. */
     static Optional<String> of(QueryScope scope, String project, String text) {
-        boolean outsideLink = scope.linkIds().map(link -> !ExampleResourceModel.withinLink(link, project)).orElse(false);
-        if (outsideLink) {
-            return Optional.empty();
-        }
         return Optional.of("project = " + QueryScope.quote(project) + " AND text ~ " + QueryScope.quote(text));
     }
 }

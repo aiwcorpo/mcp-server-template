@@ -11,7 +11,7 @@ import pl.aiwcorpo.mcp.platform.resource.QueryScope;
  * the one of the generated system.
  *
  * <p>OpenSearch applies the rights of the exchanged token, but the platform does not rely on that for the scope: the
- * indices come from the grants of the caller and the link of the virtual server ({@link QueryScope}). The patterns of
+ * indices come from the grants of the caller ({@link QueryScope}). The patterns of
  * the scope ({@code p} and {@code p-*}) are sent to {@code GET _resolve/index/} only; the answer is reduced by
  * {@link QueryScope#opensearchSearchTarget} to concrete index names (aliases, data streams and names outside the
  * contract pattern are never in the list) and then to the requested prefix. A tool that takes an index name as its argument passes it through
@@ -22,7 +22,7 @@ final class ExampleSearchQuery {
     private ExampleSearchQuery() {
     }
 
-    /** Empty when there is nothing to ask the system: no grant, a link that does not meet the grants, nothing under the prefix. */
+    /** Empty when there is nothing to ask the system: no grant, nothing under the prefix. */
     static List<String> indices(QueryScope scope, String prefix, UnaryOperator<String> resolveIndex) {
         if (scope.nothingToQuery()) {
             return List.of();
@@ -31,7 +31,7 @@ final class ExampleSearchQuery {
         // An empty target means "ask nothing": a request with an empty index list would search every index.
         return scope.opensearchSearchTarget(resolved)
                 .map(target -> Arrays.stream(target.split(","))
-                        .filter(name -> ExampleResourceModel.withinLink(List.of(prefix), name))
+                        .filter(name -> ExampleResourceModel.within(List.of(prefix), name))
                         .toList())
                 .orElse(List.of());
     }

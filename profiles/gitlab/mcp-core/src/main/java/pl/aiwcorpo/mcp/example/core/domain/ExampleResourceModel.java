@@ -11,7 +11,7 @@ public final class ExampleResourceModel {
     /** Type of the record itself: the argument of {@code get_record} and the id of a search hit. */
     public static final String RECORD_TYPE = "GitLab::Project";
 
-    /** Type of the container, the one a virtual server link narrows ({@code QueryScope}). */
+    /** Type of the container, the one a search is narrowed to ({@code QueryScope}). */
     public static final String PARENT_TYPE = "GitLab::Group";
 
     /**
@@ -29,10 +29,10 @@ public final class ExampleResourceModel {
     }
 
     /**
-     * Whether a search in {@code parentId} stays inside the narrowing of the link ({@code linkIds}): groups nest, so a
-     * group is inside when it is a linked group or lies below one.
+     * Whether a search in {@code parentId} stays inside the ids of a scope ({@code scopeIds}): groups nest, so a
+     * group is inside when it is a scope group or lies below one.
      */
-    public static boolean withinLink(Collection<String> linkIds, String parentId) {
-        return linkIds.stream().anyMatch(link -> parentId.equals(link) || parentId.startsWith(link + "/"));
+    public static boolean within(Collection<String> scopeIds, String parentId) {
+        return scopeIds.stream().anyMatch(id -> parentId.equals(id) || parentId.startsWith(id + "/"));
     }
 }

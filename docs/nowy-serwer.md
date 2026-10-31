@@ -35,10 +35,10 @@ pliki plikami z `profiles/<system>/` (ścieżki te same co w template'cie):
 
 | Plik | Co zmienia |
 | --- | --- |
-| `mcp-core/.../domain/ExampleResourceModel.java` | typ zasobu i kontenera, wzorce identyfikatorów z kontraktów (`contractPattern`), reguła zawężenia linkiem |
+| `mcp-core/.../domain/ExampleResourceModel.java` | typ zasobu i kontenera, wzorce identyfikatorów z kontraktów (`contractPattern`), reguła zawężenia do zakresu (`within`) |
 | `mcp-integration/.../ExampleResourceDescription.java` | jak rekord jest opisany polityce: atrybuty wymagane przez schemat Cedar danego systemu (GitLab: `ancestorClassifications`) |
-| `mcp-tools/.../ExampleSearchQuery.java` | zapytanie wyszukiwania: JQL (Jira, template) i CQL (Confluence) przez `StructuredQuery`; GitLab sprawdza link ręcznie, Service Desk także granty (`nothingToQuery`), OpenSearch rozwija wzorce do nazw indeksów |
-| `mcp-app/src/test/.../SampleScope.java` | kształt identyfikatorów w testach, klucz `vsc` linku, grupy odczytu (OpenSearch) |
+| `mcp-tools/.../ExampleSearchQuery.java` | zapytanie wyszukiwania: JQL (Jira, template) i CQL (Confluence) przez `StructuredQuery`; GitLab składa zapytanie z grupy i tekstu, Service Desk pyta tylko o granty (`nothingToQuery`), OpenSearch rozwija wzorce do nazw indeksów |
+| `mcp-app/src/test/.../SampleScope.java` | kształt identyfikatorów w testach, grupy odczytu (OpenSearch) |
 
 Profile: `gitlab` (`GitLab::Project` w `GitLab::Group`), `confluence` (`Confluence::Page` w `Confluence::Space`),
 `servicedesk` (`ServiceDesk::Ticket` w `ServiceDesk::Queue`, klasyfikacja kolejki opcjonalna), `opensearch`
@@ -85,8 +85,8 @@ Na końcu skrypt sprawdza, że w nowym projekcie nie zostało żadne `example`.
    `@ResourceRef` w rekordzie albo `ResultFilter`. Narzędzie `DESTRUCTIVE` (Jira `delete_issue`) z akcją `delete` i
    uprawnieniem `mcp-<system>-destructive`.
 5. Testy: `StubBackend` odpowiada jak API systemu (albo test woła mock z `mcp-platform-dev`); dla każdego narzędzia
-   z zasobem: zasób `restricted` daje `not_found_or_denied` identyczne jak nieistniejący, wyszukiwanie z linkiem
-   zawężonym nie zwraca zasobów spoza zakresu, brak grupy daje `access_denied`, a `ManifestTest` pilnuje zgodności
+   z zasobem: zasób `restricted` daje `not_found_or_denied` identyczne jak nieistniejący, wyszukiwanie w projekcie nie zwraca zasobów
+   spoza niego, brak grupy daje `access_denied`, a `ManifestTest` pilnuje zgodności
    manifestu z `tools/list`. Do tego pozytywny, `credential_required` (brak poświadczenia i 401 systemu),
    `invalid_argument`. `GatewayOnlyAccessTest` zostaje (po zmianie nazwy narzędzia w `GET_RECORD`).
 6. Konfiguracja wdrożenia: `MCP_POLICY_URL`, `MCP_POLICY_KEY_ID`, `MCP_POLICY_PUBLIC_KEY_FILE`, `MCP_POLICY_STATE_DIR`,

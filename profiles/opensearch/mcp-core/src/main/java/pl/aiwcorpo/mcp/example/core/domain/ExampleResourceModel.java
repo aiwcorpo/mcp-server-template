@@ -11,7 +11,7 @@ public final class ExampleResourceModel {
     /** Type of the record itself: the argument of {@code get_record} and the id of a search hit. */
     public static final String RECORD_TYPE = "OpenSearch::Index";
 
-    /** Type a virtual server link narrows ({@code QueryScope}): index prefixes. An index has no container. */
+    /** Type a search is narrowed to ({@code QueryScope}): index prefixes. An index has no container. */
     public static final String PARENT_TYPE = "OpenSearch::Index";
 
     /**
@@ -29,10 +29,10 @@ public final class ExampleResourceModel {
     }
 
     /**
-     * Whether a search in {@code parentId} (an index prefix) stays inside the narrowing of the link ({@code linkIds}):
-     * a linked prefix covers the index named exactly like it and every index starting with {@code <prefix>-}.
+     * Whether a search in {@code parentId} (an index prefix) stays inside the ids of a scope ({@code scopeIds}):
+     * a prefix of the scope covers the index named exactly like it and every index starting with {@code <prefix>-}.
      */
-    public static boolean withinLink(Collection<String> linkIds, String parentId) {
-        return linkIds.stream().anyMatch(link -> parentId.equals(link) || parentId.startsWith(link + "-"));
+    public static boolean within(Collection<String> scopeIds, String parentId) {
+        return scopeIds.stream().anyMatch(id -> parentId.equals(id) || parentId.startsWith(id + "-"));
     }
 }

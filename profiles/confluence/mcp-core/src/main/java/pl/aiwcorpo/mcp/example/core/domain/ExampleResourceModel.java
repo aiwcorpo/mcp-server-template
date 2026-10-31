@@ -11,7 +11,7 @@ public final class ExampleResourceModel {
     /** Type of the record itself: the argument of {@code get_record} and the id of a search hit. */
     public static final String RECORD_TYPE = "Confluence::Page";
 
-    /** Type of the container, the one a virtual server link narrows ({@code QueryScope}). */
+    /** Type of the container, the one a search is narrowed to ({@code QueryScope}). */
     public static final String PARENT_TYPE = "Confluence::Space";
 
     /**
@@ -29,10 +29,10 @@ public final class ExampleResourceModel {
     }
 
     /**
-     * Whether a search in {@code parentId} stays inside the narrowing of the link ({@code linkIds}): a space is inside
-     * when it is one of the linked spaces (pages are narrowed through their space).
+     * Whether a search in {@code parentId} stays inside the ids of a scope ({@code scopeIds}): a space is inside
+     * when it is one of the spaces of the scope (pages are narrowed through their space).
      */
-    public static boolean withinLink(Collection<String> linkIds, String parentId) {
-        return linkIds.contains(parentId);
+    public static boolean within(Collection<String> scopeIds, String parentId) {
+        return scopeIds.contains(parentId);
     }
 }

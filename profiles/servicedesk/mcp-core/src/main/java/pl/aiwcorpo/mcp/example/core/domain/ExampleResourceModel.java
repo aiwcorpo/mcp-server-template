@@ -11,7 +11,7 @@ public final class ExampleResourceModel {
     /** Type of the record itself: the argument of {@code get_record} and the id of a search hit. */
     public static final String RECORD_TYPE = "ServiceDesk::Ticket";
 
-    /** Type of the container, the one a virtual server link narrows ({@code QueryScope}). */
+    /** Type of the container, the one a search is narrowed to ({@code QueryScope}). */
     public static final String PARENT_TYPE = "ServiceDesk::Queue";
 
     /**
@@ -29,10 +29,10 @@ public final class ExampleResourceModel {
     }
 
     /**
-     * Whether a search in {@code parentId} stays inside the narrowing of the link ({@code linkIds}): a queue is inside
-     * when it is one of the linked queues.
+     * Whether a search in {@code parentId} stays inside the ids of a scope ({@code scopeIds}): a queue is inside
+     * when it is one of the granted queues.
      */
-    public static boolean withinLink(Collection<String> linkIds, String parentId) {
-        return linkIds.contains(parentId);
+    public static boolean within(Collection<String> scopeIds, String parentId) {
+        return scopeIds.contains(parentId);
     }
 }

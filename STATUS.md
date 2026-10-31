@@ -372,3 +372,15 @@ BOM alpha-10 -> alpha-11 (MIGRATION-3.0.md, sekcja "Zmiany w 3.0.0-alpha-11"). `
 confluence, servicedesk, opensearch i `--trial demo` (generowane w scratchpadzie, nie w `mcp-server-*`). Mutacje:
 usunięcie `@ResourceRef` z hitu wyszukiwania oraz wyłączenie kontroli linku łamią `SearchRecordsToolTest`.
 Uruchomienia procesu hosta nie robiłem (testy idą przez `TestGateway` i stub backendu).
+
+## M5: starter 3.0.0-beta-10, kontrakty 5.1.0 (2026-10-31)
+
+- Wersja `mcp-platform.version` 3.0.0-beta-10 (BOM przypina kontrakty 5.1.0); README poprawione.
+- Usunięte z kodu i testów: `virtualServer(...)` w testach, `LINK_KEY`, `linkIds()` (martwe gałęzie w `ExampleSearchQuery` Jiry,
+  GitLaba, Service Desku, Confluence), `withinLink` -> `within(scopeIds, id)`; testy zawężenia linkiem usunięte, test akceptacji
+  `vs` zastąpiony `GatewayOnlyAccessTest.aTokenWithTheClaimsOfTheRemovedVirtualServersIsRejected` (`vs` i `vsc` -> 401).
+- CI: `ci/run.sh` (verify, hygiene, image), `Makefile`, `.gitlab-ci.yml`, `Jenkinsfile`, `.github/workflows/ci.yml`, `.ci/settings*.xml`.
+  MR/PR bez sekretów i bez gniazda Dockera, `image` tylko na `main`, perl `<<>>`, nieznany krok = 2, 0 uruchomionych testów = błąd.
+- Dowód: `ci/run.sh verify` 57 przypadków uruchomionych (9 pominięte: `ManifestTest` w template'cie, jeden warunkowy);
+  `tests/new-server-test.sh --build` 0 błędów (jira, gitlab, confluence, servicedesk, opensearch, demo, w tym hygiene wygenerowanych).
+M5: osiągnięty (2026-10-31) - template na beta-10 i kontraktach 5.1.0, CI ci/run.sh

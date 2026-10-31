@@ -63,11 +63,10 @@ public class ExampleTool {
     /**
      * The model names the project and the text, never a query: {@link ExampleSearchQuery} builds the backend query
      * from them and from the {@link QueryScope} of the policy, narrowed to the requested project with
-     * {@link QueryScope#narrowedTo} where the system has a query builder (intersected with the link of the virtual
-     * server). The project is not a {@code @ResourceRef} on purpose: that would need a resolver for the container
-     * type, and a link that narrows the virtual server to other projects must give an empty search, not an error
-     * that tells which projects exist. The hits are filtered afterwards by their {@code @ResourceRef} component,
-     * which also removes what the backend returns beyond the project (linked records) and what the policy refuses
+     * {@link QueryScope#narrowedTo} where the system has a query builder. The project is not a
+     * {@code @ResourceRef} on purpose: that would need a resolver for the container type, and a project the caller
+     * is not granted must give an empty search, not an error that tells which projects exist. The hits are filtered afterwards by their {@code @ResourceRef} component,
+     * which also removes what the backend returns beyond the project (records linked from it) and what the policy refuses
      * (a restricted project yields no hits).
      */
     @Tool(name = "search_records", description = "Searches the titles of the records of one project for a text.")

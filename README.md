@@ -1,7 +1,7 @@
 # mcp-example: serwer MCP platformy
 
-Serwer MCP dla systemu `example`, zbudowany na `mcp-platform-starter` 3.0.0-beta-9 (Java 25, Spring Boot
-4.1.0, Spring AI 2.0.0, kontrakty `mcp-contracts` 4.1.0). Stoi wyłącznie za gateway'em platformy: przyjmuje
+Serwer MCP dla systemu `example`, zbudowany na `mcp-platform-starter` 3.0.0-beta-10 (Java 25, Spring Boot
+4.1.0, Spring AI 2.0.0, kontrakty `mcp-contracts` 5.1.0). Stoi wyłącznie za gateway'em platformy: przyjmuje
 ruch tylko po mTLS z wewnętrznym JWT gateway'a (C2), a do systemu docelowego woła z poświadczeniem
 użytkownika, które gateway dołącza do każdego żądania (C3). Bez poprawnego JWT odpowiada 401, nie ma trybu
 anonimowego.
@@ -19,7 +19,7 @@ export JAVA_HOME=/opt/homebrew/Cellar/openjdk@25/25.0.4.1/libexec/openjdk.jdk/Co
 ```
 
 Wersja startera to właściwość `mcp-platform.version` w `pom.xml` (importuje ją `mcp-platform-bom`, który przypina też
-kontrakty 4.1.0); `new-server.sh` czyta wersję z tej właściwości, więc podbicie robi się w jednym miejscu.
+kontrakty 5.1.0); `new-server.sh` czyta wersję z tej właściwości, więc podbicie robi się w jednym miejscu.
 
 Testy nie potrzebują Dockera ani środowiska `mcp-platform-dev`: `TestGateway` z `mcp-platform-test` wystawia
 JWKS z kluczy testowych kontraktów i podpisuje wewnętrzne JWT, a `StubBackend` (test) udaje API systemu.
@@ -43,20 +43,20 @@ systemu, nie z argumentu narzędzia.
 | Narzędzie | Tytuł | Ryzyko | Akcja | Uprawnienie (C9) | Argumenty | Wynik i błędy |
 | --- | --- | --- | --- | --- | --- | --- |
 | `get_record` | Pobierz rekord | `READ_ONLY` | `read` | `mcp-example-read` | `recordId` z `@ResourceRef`, wzorzec i długość z kontraktu (`ExampleResourceModel`) | `{id, project, title, status}`; `not_found_or_denied` (brak rekordu, 404 i 403 z systemu, projekt `restricted`, rekord przeniesiony do takiego projektu, klasyfikacja nieznana), `access_denied` (brak grupy), `credential_required`, `invalid_argument`, `upstream_unavailable`, `internal_error` |
-| `search_records` | Szukaj rekordów | `READ_ONLY` | `read` | `mcp-example-read` | `project` (zakres, wzorzec z kontraktu), `text` (1-200 znaków); zapytanie do systemu buduje serwer | `{hits: [{id, title}]}`, najwyżej 50; zapytanie (JQL) buduje `StructuredQuery` z zakresu linku wirtualnego serwera i wartości od modelu, hity są filtrowane polityką (`ResultFilter`) |
+| `search_records` | Szukaj rekordów | `READ_ONLY` | `read` | `mcp-example-read` | `project` (zakres, wzorzec z kontraktu), `text` (1-200 znaków); zapytanie do systemu buduje serwer | `{hits: [{id, title}]}`, najwyżej 50; zapytanie (JQL) buduje `StructuredQuery` z żądanego projektu i wartości od modelu, hity są filtrowane polityką (`ResultFilter`) |
 
 Nazwa widziana przez klienta to `example__get_record` (prefiks dokłada gateway, C5). Tytuły są częścią definicji
 narzędzia, więc ich zmiana zmienia `definitionHash`.
 
 Wybór zakresu: model podaje wartości (projekt, tekst), nigdy fragmentu języka zapytań. `ExampleSearchQuery` składa
 zapytanie przez `scope.jql(pola).where(pole, operator, wartość).build()` (Confluence: `scope.cql`): starter dokleja
-zawężenie z linku (`project in (...)`) i cytuje każdą wartość, więc cudzysłów ani nawias w tekście nie zmienia
+zawężenie do żądanego projektu (`project in (...)`) i cytuje każdą wartość, więc cudzysłów ani nawias w tekście nie zmienia
 zapytania. Pola i operatory są normatywne (CC-160): warunki JQL to `text`, `status`, `assignee`, `summary`, CQL `text`,
 `title`, `label`; operatory `EQUALS`, `CONTAINS`, `NOT_EQUALS` z jedną wartością; `ORDER BY` z `created`, `updated`,
 `priority`, `key` (CQL: `created`, `lastmodified`, `title`). Projekt ani przestrzeń nie są polami warunku: żądany zakres wchodzi do części zakresowej zapytania przez
-`scope.narrowedTo(List.of(projekt))` (przecięcie z linkiem; puste przecięcie to pusty wynik bez wywołania systemu), więc
+`scope.narrowedTo(List.of(projekt))` (puste przecięcie z grantami to `nothingToQuery()`: pusty wynik bez wywołania systemu), więc
 zapytanie ma postać `(warunki) AND project in ("DEF")`. Argument nie jest `@ResourceRef` (to wymagałoby resolvera typu
-kontenera, a link na inne projekty ma dać pusty wynik, nie błąd); hity i tak przechodzą przez `ResultFilter`. Systemy bez budowniczego w starterze (GitLab, service desk) sprawdzają zakres ręcznie (`linkIds()`), a gdzie system nie
+kontenera, a projekt spoza grantów ma dać pusty wynik, nie błąd); hity i tak przechodzą przez `ResultFilter`. Systemy bez budowniczego w starterze (GitLab, service desk) składają zapytanie z żądanej grupy i tekstu (prawa użytkownika stosuje system), a gdzie system nie
 stosuje praw użytkownika (service desk z kontem serwisowym) pytają tylko o kolejki z `grantedIds()`; `nothingToQuery()`
 oznacza: zwróć pusty wynik bez wywołania systemu. OpenSearch nie wysyła wzorców `p-*` do wyszukiwania: wzorce zakresu
 (`opensearchIndexExpression()`) idą wyłącznie do `GET _resolve/index/` z `OPENSEARCH_RESOLVE_PARAMETERS` (odpowiedź 404 to
@@ -70,7 +70,7 @@ sam `not_found_or_denied`).
 ```
 gateway --mTLS (CN mcp-gateway) + JWT C2 (aud mcp-example, tool get_record) + X-MCP-Credential-->
   starter: InternalJwtFilter (inaczej 401) -> CredentialHeaderFilter -> AuditingToolCallback (C8)
-  -> starter: Cedar `call` na narzędziu (grupa, link), potem dla @ResourceRef:
+  -> starter: Cedar `call` na narzędziu (grupa), potem dla @ResourceRef:
      ExampleRecordResolver -> ExampleResourceAdapter -> ExampleBackendClient: CredentialContext + credential::applyTo
      -> GET {MCP_EXAMPLE_URL}/api/records/{id}; opis zasobu (projekt i klasyfikacja Z SYSTEMU) -> Cedar `read`
   -> ExampleTool.getRecord: rekord, który pobrał resolver (bez drugiego wywołania)
@@ -148,6 +148,24 @@ tylko w profilu `dev`, z ostrzeżeniem w logu.
 
 `java` w `PATH` może być starsza niż 25 (wtedy `UnsupportedClassVersionError`), dlatego poniżej zawsze
 `$JAVA_HOME/bin/java`.
+
+## CI
+
+Cała logika jest w `ci/run.sh` (`make ci` woła `ci/run.sh verify`); `.gitlab-ci.yml`, `Jenkinsfile` i `.github/workflows/ci.yml`
+to cienkie nakładki, więc to samo działa lokalnie, w obrazie `maven:3.9.12-eclipse-temurin-25` i w każdym z trzech systemów.
+
+| Krok | Co robi |
+| --- | --- |
+| `ci/run.sh verify` (domyślny) | `hygiene`, `mvnw clean verify`, potem kontrola, że uruchomiono co najmniej jeden test (pominięte nie liczą się) i że serwer systemu z `SystemId` zapisał `mcp-app/target/mcp-manifest.json` |
+| `ci/run.sh hygiene` | cudzysłowy, spacje i wielokropek spoza ASCII oraz ślady narzędzi w źródłach (perl czyta przez `<<>>`) |
+| `ci/run.sh image` | `docker build` jaru z `verify`; tylko gałąź `main`, wymaga demona Dockera |
+
+Inny argument kończy się kodem 2. Merge request i pull request nie dostają sekretów ani gniazda Dockera: testy nie
+potrzebują kontenerów, a rejestr Maven z artefaktami platformy (`MCP_MAVEN_REPOSITORY_URL`, zwykła zmienna) jest wtedy
+czytany anonimowo (`.ci/settings-anonymous.xml`). Dane dostępu (`MCP_MAVEN_REPOSITORY_USER`, `_PASSWORD`; w GitLabie
+zmienne Protected i Masked, w Jenkinsie poświadczenie `mcp-maven-registry`) widzi tylko gałąź `main`, na której działa też
+krok `image` (runner z gniazdem Dockera). Rejestracja manifestu w gateway'u (`PUT` z certyfikatem
+`mcp-registry-ci-<serverId>`) jest osobnym krokiem pipeline'u serwera, bo wymaga sekretu, którego template nie zna.
 
 ## Uruchomienie lokalne bez środowiska
 
@@ -256,19 +274,19 @@ metryka `mcp_server_devstack_active` ma wartość 1. Bez obu zgód albo z drugim
 | Klasa | Co sprawdza |
 | --- | --- |
 | `GetRecordToolTest` | poświadczenie z C3 dociera do systemu; typ poświadczenia spoza listy serwera daje `internal_error` bez wywołania systemu; jedno wywołanie na rekord; `readOnlyHint`, tytuł, zamknięty schemat, `maxLength` i `pattern`; brak poświadczenia i 401 systemu -> `credential_required`; 404 i 403 -> ten sam `not_found_or_denied`; zły `recordId` nie dociera do systemu i nie wraca w błędzie; nieczytelna odpowiedź 200 i rekord bez `id` -> `internal_error` bez treści w logu; przekierowanie nie jest wykonywane; timeout -> `upstream_unavailable`; za duża odpowiedź ucięta; poświadczenie nie trafia do wyniku ani logu |
-| `ResourcePolicyTest` | rekord w projekcie `restricted` i rekord przeniesiony do takiego projektu dają `not_found_or_denied` identyczne jak nieistniejący; rekord z nieznaną klasyfikacją nie jest wydawany (`internal_error`, kontrakt; użytkownik bez grantu dostaje `not_found_or_denied` przed resolverem); każda odmowa ma stały tekst `ToolErrorCode.NOT_FOUND_OR_DENIED_MESSAGE`; `access_denied` bez grupy i bez wywołania systemu; link zawężony do innego projektu ukrywa rekord; awaria systemu to nie odmowa |
-| `SearchRecordsToolTest` | wyniki bez rekordów zastrzeżonych i przeniesionych; link zawężony do jednego projektu nie zwraca rekordów spoza niego i jest w zapytaniu; wyszukiwanie poza linkiem jest puste; zapytanie zawężone do żądanego projektu i linku; kolejka bez grantu nie jest pytana (Service Desk); cudzysłów w tekście od modelu zostaje literałem; hity rozwiązane jednym wywołaniem; `credential_required`, `access_denied`, błędne argumenty |
+| `ResourcePolicyTest` | rekord w projekcie `restricted` i rekord przeniesiony do takiego projektu dają `not_found_or_denied` identyczne jak nieistniejący; rekord z nieznaną klasyfikacją nie jest wydawany (`internal_error`, kontrakt; użytkownik bez grantu dostaje `not_found_or_denied` przed resolverem); każda odmowa ma stały tekst `ToolErrorCode.NOT_FOUND_OR_DENIED_MESSAGE`; `access_denied` bez grupy i bez wywołania systemu; awaria systemu to nie odmowa |
+| `SearchRecordsToolTest` | wyniki bez rekordów zastrzeżonych i przeniesionych; tylko wiersze żądanego projektu; zapytanie zawężone do żądanego projektu; kolejka bez grantu nie jest pytana (Service Desk); cudzysłów w tekście od modelu zostaje literałem; hity rozwiązane jednym wywołaniem; `credential_required`, `access_denied`, błędne argumenty |
 | `ManifestTest` | manifest przechodzi reguły gateway'a, definicje równe `tools/list` (zgodny `definitionHash`), tytuły i zamknięte schematy, `resourceRefs`, 401 bez JWT; narzędzia z `ManifestExport` (plik z budowy) równe `tools/list` serwera; bez `environment` poza `devstack`, `acceptedTypes` z typem systemu |
-| `GatewayOnlyAccessTest` | bez JWT 401 (`tools/call`, `ping`, `initialize`), JWT dla innego serwera, innego narzędzia, wariant serwisowy i przeterminowany -> 401; bez JWT tylko health; system zgodny z `SystemId` (albo jawnie próbny) |
+| `GatewayOnlyAccessTest` | bez JWT 401 (`tools/call`, `ping`, `initialize`), JWT dla innego serwera, innego narzędzia, wariant serwisowy i przeterminowany -> 401; token z claimem `vs` albo `vsc` (usunięte w kontraktach 5.x) -> 401; bez JWT tylko health; system zgodny z `SystemId` (albo jawnie próbny) |
 | `ProductionConfigurationTest` | typ domyślny jest pierwszym z `accepted-credential-types` (baza i `dev`), brak `credential-type`; konfiguracja bazowa: `client-auth: need`, paczka polityk i manifest wymagane, bez kluczy testowych; klucze testowe i repozytorium polityk dev tylko w `application-dev.yml`; backend `http` poza `dev` odrzucony (chyba że jawnie dopuszczony); `dev` na 127.0.0.1 |
-| `IndexResolutionTest` (tylko serwer OpenSearch) | wzorce zakresu idą tylko do `_resolve/index`, wyszukiwanie dostaje nazwy bez aliasu i parametry listy nazw, link na inny prefiks i brak grantu nie wołają systemu |
+| `IndexResolutionTest` (tylko serwer OpenSearch) | wzorce zakresu idą tylko do `_resolve/index`, wyszukiwanie dostaje nazwy bez aliasu i parametry listy nazw, brak grantu nie woła systemu |
 | `DevProfileLoopbackTest` | reguła adresu `dev` (`assertDevProfileLoopbackRule`) i obecność guardów w kontekście serwera (`assertServerIsGuarded`) |
 | `ExampleToolTest` | walidacja tekstu wyszukiwania (stały komunikat), limity i zamknięte schematy obu narzędzi, `get_record` z kontekstem z `TestResourceContext` |
 | `ExampleServiceTest` | limit wyników wyszukiwania bez Springa |
 
 Nowe narzędzie dostaje test w tym samym stylu: klasa dziedziczy po `ServerTestSupport`, odpowiedź systemu
 dopisuje się w `StubBackend`. Polityka w testach to paczka z przykładów kontraktów (`TestGateway`; dla serwera spoza pięciu systemów
-generowana: grupy `mcp-<system>-read|write|destructive`, odczyt, `restricted`, link). Serwer próbny nie ma poprawnego manifestu
+generowana: grupy `mcp-<system>-read|write|destructive`, odczyt, `restricted`). Serwer próbny nie ma poprawnego manifestu
 (`serverId` jest enumem kontraktów), więc osiem testów `ManifestTest` jest w template'cie i w serwerze próbnym pomijanych
 (`assumeFalse(TRIAL_SYSTEM)`: raportowane jako "skipped", nie jako błąd) i wykonywanych w każdym serwerze wygenerowanym dla
 systemu z `SystemId`; `credential_required` jest w serwerze próbnym `internal_error`. 

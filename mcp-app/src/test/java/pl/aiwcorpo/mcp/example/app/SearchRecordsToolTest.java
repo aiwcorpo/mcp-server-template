@@ -10,7 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * {@code search_records}: the server builds the backend query, the link of a virtual server narrows it, and the hits are
+ * {@code search_records}: the server builds the backend query, the requested project narrows it, and the hits are
  * filtered by the policy, so a search never shows what {@code get_record} would refuse.
  */
 class SearchRecordsToolTest extends ServerTestSupport {
@@ -58,17 +58,6 @@ class SearchRecordsToolTest extends ServerTestSupport {
     }
 
     @Test
-    void aLinkNarrowedToOneProjectReturnsNothingOutsideIt() {
-        try (McpSyncClient client = clientWithToken(
-                user -> { reader(user); user.virtualServer("abc-only", Map.of(SampleScope.LINK_KEY, List.of(SampleScope.OPEN_PROJECT))); }, PAT)) {
-            McpSchema.CallToolResult result = call(client, "search_records", search(SampleScope.OPEN_PROJECT, "report"));
-
-            assertThat(result.isError()).isFalse();
-            assertThat(text(result)).contains(StubBackend.OPEN_1, StubBackend.OPEN_2).doesNotContain(StubBackend.OTHER_7, StubBackend.RESTRICTED_5);
-        }
-    }
-
-    @Test
     void onlyTheRowsOfTheRequestedProjectAreReturned() {
         try (McpSyncClient client = clientWithCredential(PAT)) {
             String open = text(call(client, "search_records", search(SampleScope.OPEN_PROJECT, "report")));
@@ -83,23 +72,9 @@ class SearchRecordsToolTest extends ServerTestSupport {
     }
 
     @Test
-    void aSearchOutsideTheLinkIsEmpty() {
-        try (McpSyncClient client = clientWithToken(
-                user -> { reader(user); user.virtualServer("abc-only", Map.of(SampleScope.LINK_KEY, List.of(SampleScope.OPEN_PROJECT))); }, PAT)) {
-            McpSchema.CallToolResult result = call(client, "search_records", search(SampleScope.OTHER_PROJECT, "report"));
-
-            assertThat(result.isError()).isFalse();
-            assertThat(text(result)).contains("\"hits\":[]");
-            assertThat(BACKEND.searches()).as("a query that reaches the system carries the link").allSatisfy(query ->
-                    assertThat(query).contains("\"" + SampleScope.OPEN_PROJECT + "\""));
-        }
-    }
-
-    @Test
-    void theLinkTravelsInsideTheQueryWhereTheSystemHasAQueryLanguage() {
-        org.junit.jupiter.api.Assumptions.assumeTrue(SampleScope.QUERY_CARRIES_LINK);
-        try (McpSyncClient client = clientWithToken(
-                user -> { reader(user); user.virtualServer("abc-only", Map.of(SampleScope.LINK_KEY, List.of(SampleScope.OPEN_PROJECT))); }, PAT)) {
+    void theRequestedProjectTravelsInsideTheQueryWhereTheSystemHasAQueryLanguage() {
+        org.junit.jupiter.api.Assumptions.assumeTrue(SampleScope.QUERY_CARRIES_PROJECT);
+        try (McpSyncClient client = clientWithCredential(PAT)) {
             call(client, "search_records", search(SampleScope.OPEN_PROJECT, "report"));
 
             assertThat(BACKEND.searches()).singleElement().asString()

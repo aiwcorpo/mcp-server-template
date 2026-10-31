@@ -46,7 +46,7 @@ generator:
     - exists: [tests/new-server-test.sh]
       if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
-image:
+build-image:
   stage: image
   image: docker:27-cli
   tags: [docker-socket]

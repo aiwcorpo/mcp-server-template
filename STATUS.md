@@ -387,3 +387,24 @@ M5: osiągnięty (2026-10-31) - template na beta-10 i kontraktach 5.1.0, CI ci/r
 Poprawki po przeglądzie serwerów (2026-10-31): hygiene nie przechodzi przy błędzie git/xargs/perl; liczniki testów per moduł
 (`CI_TEST_MODULES`, `CI_APP_MIN_TESTS`); krok `generator` (`tests/new-server-test.sh --build`) w CI szablonu; tag obrazu
 `mcp-server-<system>:<prefiks>-<sha7>`; `ManifestTest` porównuje hash (gdy listy typów są równe) i wersję z pom; GitHub: Environment `ci-main`, checkout przypięty do SHA.
+
+## M6: starter 3.0.0-beta-14, wzorce pełnych serwerów i porządki do wydania (2026-11-03)
+
+- `mcp-platform.version` 3.0.0-beta-14, kontrakty 6.3.2 (MIGRATION-3.0.md, "Z beta-10" do "Z beta-14"): hashe i manifest bez zmian dla
+  serwera natywnego, test zliczający pliki wektorów nie istnieje w szablonie.
+- Serwer przykładowy dostał wzorce `mcp-server-jira` i `mcp-server-confluence`: `ExampleCapabilityProbe` i `ObservedVersions`,
+  `ExampleWriteGate` (fail closed przy nieznanej wersji, flaga `MCP_EXAMPLE_WRITES_ON_UNKNOWN_VERSION`), `update_record` (`UPDATE`, wartość
+  docelowa), `list_comments` (`PagedResult`, `CursorCodec`, `PageFiller`), `get_comment` (id podrzędne sprawdzane względem ocenionego
+  rekordu), `ExampleToolErrors`. Opis: `docs/nowy-serwer.md`, "Wzorce pełnych serwerów".
+- Profile: confluence, gitlab, servicedesk dostają te same narzędzia; opensearch (tylko odczyt) tylko sondę (`serverInfo` w porcie i adapterze),
+  testy zapisu i komentarzy pomijane przez `SampleScope.FULL_TOOL_SET`. W profilach confluence i gitlab `OPEN_PROJECT` to `ENG` i `team-a`,
+  bo zapis wymaga grantu z przykładowej paczki kontraktów (`SampleScope.WRITE_GRANTS`).
+- Nie zrobione: `search_records` nie ma kursora (wzorzec stronicowania z filtrem polityki jest w `JiraTool.searchIssues`, opisany w dokumencie);
+  `delete_*` (`DESTRUCTIVE`) bez przykładu poza opisem w `docs/jak-napisac-narzedzie.md`.
+- Testy: `ci/run.sh verify` 87 uruchomionych (application 4, integration 3, tools 8, app 72; 9 pominiętych: `ManifestTest` w szablonie i jeden warunkowy);
+  `tests/new-server-test.sh --build` 0 błędów (jira, gitlab, confluence, servicedesk, opensearch, demo); nowe kontrole: pliki wydania w
+  wygenerowanym serwerze, przypięcie akcji do SHA i obrazów do digestów, licencja w pom.
+- Porządki: LICENSE, NOTICE (też w jarach), SECURITY, CONTRIBUTING, CHANGELOG (szablon ma własny, generator pisze nowy), `release.yml` kopiowany
+  do serwerów (w szablonie wyłączony warunkiem na repozytorium), `ci/run.sh` szuka JDK 25, obrazy CI po digeście, README i dokumenty bez ścieżek z katalogu użytkownika.
+  Workflow nie był uruchomiony; SHA akcji i digesty skopiowane z `mcp-server-confluence` i `mcp-starter-lib` (weryfikacja `git ls-remote` i
+  `docker buildx imagetools inspect` nie powiodła się: brak połączenia z GitHubem i Docker Hub w chwili pracy).

@@ -4,6 +4,7 @@ import java.util.List;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Service;
+import pl.aiwcorpo.mcp.example.core.domain.CommentPage;
 import pl.aiwcorpo.mcp.example.core.domain.ExampleRecord;
 import pl.aiwcorpo.mcp.example.core.domain.ExampleResourceModel;
 import pl.aiwcorpo.mcp.example.core.port.in.ExampleUseCase;
@@ -12,6 +13,9 @@ import pl.aiwcorpo.mcp.platform.guard.RiskLevel;
 import pl.aiwcorpo.mcp.platform.guard.ToolRisk;
 import pl.aiwcorpo.mcp.platform.guard.ToolTitle;
 import pl.aiwcorpo.mcp.platform.input.ArgumentLimits;
+import pl.aiwcorpo.mcp.platform.paging.CursorCodec;
+import pl.aiwcorpo.mcp.platform.paging.PageFiller;
+import pl.aiwcorpo.mcp.platform.paging.PagedResult;
 import pl.aiwcorpo.mcp.platform.resource.QueryScope;
 import pl.aiwcorpo.mcp.platform.resource.ResourceContext;
 import pl.aiwcorpo.mcp.platform.resource.ResourcePolicy;
@@ -31,13 +35,31 @@ import pl.aiwcorpo.mcp.platform.resource.ResourceRef;
 public class ExampleTool {
 
     static final int SEARCH_TEXT_MAX_LENGTH = 200;
+    static final int TITLE_MAX_LENGTH = 255;
+    /** Comment ids of the backend are numbers; the pattern keeps anything else out of the path of the request. */
+    static final String COMMENT_ID_PATTERN = "^[0-9]{1,12}$";
+    static final int COMMENT_ID_MAX_LENGTH = 12;
+    /**
+     * Backend pages one call may read to fill a page that the filter of the use case thinned out: a short page with a
+     * cursor would tell the caller that something was left out. Each read is a call to the backend, so the number is small.
+     */
+    static final int FILL_READS = 4;
 
     private final ExampleUseCase useCase;
     private final ResourcePolicy policy;
+    private final CursorCodec cursors;
+    private final ExampleWriteGate gate;
 
-    public ExampleTool(ExampleUseCase useCase, ResourcePolicy policy) {
+    /** The tool class for the build step that writes the manifest: it only reads the annotations, nothing is called. */
+    public static ExampleTool forManifest() {
+        return new ExampleTool(null, null, null, null);
+    }
+
+    public ExampleTool(ExampleUseCase useCase, ResourcePolicy policy, CursorCodec cursors, ExampleWriteGate gate) {
         this.useCase = useCase;
         this.policy = policy;
+        this.cursors = cursors;
+        this.gate = gate;
     }
 
     /**
@@ -85,5 +107,102 @@ public class ExampleTool {
         return ExampleSearchQuery.of(scope, project, text)
                 .map(query -> ExampleSearchView.of(useCase.searchRecords(query)))
                 .orElseGet(() -> new ExampleSearchView(List.of()));
+    }
+
+    /**
+     * A paged list: the page, the cursor of the next one, no total. The position travels in a cursor of
+     * {@link CursorCodec} (encrypted, bound to the caller, the tool and the arguments, so a cursor of another record or
+     * user is refused). {@link PageFiller} reads further backend pages while the use case dropped rows (a comment filed
+     * under another record), so the size of a page does not show how much was dropped.
+     */
+    @Tool(name = "list_comments", description = "Lists the comments of one record, oldest first, 10 per page: id, "
+            + "author and the text as written by the users of the system, marked as untrusted data. Pass nextCursor "
+            + "back, unchanged, to get the next page.")
+    @ToolRisk(RiskLevel.READ_ONLY)
+    @ToolTitle("Lista komentarzy")
+    public PagedResult<ExampleCommentItem> listComments(
+            @ToolParam(description = "Record id as the system issues it")
+            @ArgumentLimits(maxLength = ExampleResourceModel.RECORD_ID_MAX_LENGTH,
+                    contractPattern = ExampleResourceModel.RECORD_ID_CONTRACT)
+            @ResourceRef(type = ExampleResourceModel.RECORD_TYPE) String recordId,
+            @ToolParam(description = "nextCursor of the previous page, unchanged", required = false)
+            @ArgumentLimits(maxLength = CursorCodec.MAX_CURSOR_LENGTH, pattern = CursorCodec.ARGUMENT_PATTERN)
+            String cursor) {
+        // The id the backend reports now: the one judged is the one whose comments are listed.
+        String id = judged(recordId).id();
+        String fingerprint = CursorCodec.fingerprint("list_comments", id);
+        PageFiller.Filled<ExampleCommentItem> page = PageFiller.fill(cursor == null ? null : position(cursor, fingerprint),
+                ExampleUseCase.COMMENT_PAGE_SIZE, FILL_READS,
+                from -> {
+                    CommentPage found = useCase.listComments(id, from == null ? 0 : Integer.parseInt(from));
+                    return new PageFiller.BackendPage<>(found.comments(),
+                            found.nextStart() == null ? null : found.nextStart().toString());
+                },
+                comments -> comments.stream().map(ExampleCommentItem::of).toList());
+        return PagedResult.of(page.items(),
+                page.next() == null ? null : cursors.issue("list_comments", fingerprint, page.next()));
+    }
+
+    /**
+     * A child object named by its own id: the record is judged by the policy ({@code @ResourceRef}), the comment id is
+     * not a resource of its own, so the use case checks that the backend files the comment under that record. Without
+     * the check a caller allowed to read record A could read any comment by guessing ids and naming A.
+     */
+    @Tool(name = "get_comment", description = "Returns one comment of a record: id, author and the text as written by "
+            + "the users of the system, marked as untrusted data.")
+    @ToolRisk(RiskLevel.READ_ONLY)
+    @ToolTitle("Pobierz komentarz")
+    public ExampleCommentItem getComment(
+            @ToolParam(description = "Record id as the system issues it")
+            @ArgumentLimits(maxLength = ExampleResourceModel.RECORD_ID_MAX_LENGTH,
+                    contractPattern = ExampleResourceModel.RECORD_ID_CONTRACT)
+            @ResourceRef(type = ExampleResourceModel.RECORD_TYPE) String recordId,
+            @ToolParam(description = "Comment id from list_comments, digits only")
+            @ArgumentLimits(minLength = 1, maxLength = COMMENT_ID_MAX_LENGTH, pattern = COMMENT_ID_PATTERN)
+            String commentId) {
+        return ExampleCommentItem.of(useCase.getComment(judged(recordId).id(), commentId));
+    }
+
+    /**
+     * A change. {@code UPDATE} is delivered at least once (the client may repeat a call after a 502 from the balancer),
+     * so the tool states the target (the title is set to a value) instead of applying an increment: the second call
+     * leaves the same state. The gate comes first: against an untested backend version nothing is sent.
+     */
+    @Tool(name = "update_record", description = "Sets the title of one record to the given text. Calling it again with "
+            + "the same text changes nothing more.")
+    @ToolRisk(RiskLevel.UPDATE)
+    @ToolTitle("Zmień tytuł rekordu")
+    public ExampleUpdateView updateRecord(
+            @ToolParam(description = "Record id as the system issues it")
+            @ArgumentLimits(maxLength = ExampleResourceModel.RECORD_ID_MAX_LENGTH,
+                    contractPattern = ExampleResourceModel.RECORD_ID_CONTRACT)
+            @ResourceRef(type = ExampleResourceModel.RECORD_TYPE) String recordId,
+            @ToolParam(description = "New title, one line, 1-255 characters")
+            @ArgumentLimits(minLength = 1, maxLength = TITLE_MAX_LENGTH) String title) {
+        gate.requireWritable();
+        if (title == null || title.isBlank() || title.length() > TITLE_MAX_LENGTH
+                || title.chars().anyMatch(Character::isISOControl)) {
+            throw new InvalidToolArgumentException("title must be 1-" + TITLE_MAX_LENGTH
+                    + " characters on one line without control characters");
+        }
+        // Written to the id the backend reports now, not to the requested one of a moved record.
+        return ExampleUpdateView.of(useCase.updateTitle(judged(recordId).id(), title.strip()));
+    }
+
+    /** The record the resolver fetched for the policy: the one judged is the one used. */
+    private static ExampleRecord judged(String recordId) {
+        return ResourceContext.current().orElseThrow()
+                .fetched(ExampleResourceModel.RECORD_TYPE, recordId, ExampleRecord.class).orElseThrow();
+    }
+
+    /** The offset a cursor carries; a cursor of another user, tool or record is refused by the codec. */
+    private String position(String cursor, String fingerprint) {
+        String state = cursors.open(cursor, "list_comments", fingerprint);
+        try {
+            Integer.parseInt(state);
+        } catch (NumberFormatException notOurs) {
+            throw new InvalidToolArgumentException(CursorCodec.REFUSED_MESSAGE);
+        }
+        return state;
     }
 }

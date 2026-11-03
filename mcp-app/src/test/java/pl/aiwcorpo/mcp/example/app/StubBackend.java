@@ -74,6 +74,14 @@ final class StubBackend {
     static final String MISSING = SampleScope.id(SampleScope.OPEN_PROJECT, 404);
 
     private static final String RECORDS = "/api/records/";
+    /**
+     * Comments of {@link #OPEN_1}: numbers 1 to 24 in the order of the backend, every fourth one filed under
+     * {@link #OPEN_2} (a backend that does not keep a comment to its parent). The comment endpoint answers any number
+     * of the range whatever record is in the path, and a list is the rows of its window, so the server has to do the
+     * checking.
+     */
+    static final int COMMENTS = 24;
+    static final String SERVER_VERSION = "2.4.1";
 
     private final HttpServer server;
     private final HttpServer elsewhere;
@@ -84,7 +92,10 @@ final class StubBackend {
     private final List<String> indexSearches = new CopyOnWriteArrayList<>();
     private final List<String> resolutions = new CopyOnWriteArrayList<>();
     private final List<String> resolutionQueries = new CopyOnWriteArrayList<>();
+    private final List<String> updates = new CopyOnWriteArrayList<>();
     private volatile boolean resolveNotFound;
+    private volatile String serverVersion = SERVER_VERSION;
+    private volatile boolean versionHidden;
 
     private StubBackend(HttpServer server, HttpServer elsewhere) {
         this.server = server;
@@ -98,6 +109,7 @@ final class StubBackend {
             StubBackend backend = new StubBackend(server, elsewhere);
             server.createContext(RECORDS, backend::handle);
             server.createContext("/api/records", backend::search);
+            server.createContext("/api/server-info", backend::serverInfo);
             server.createContext("/_resolve/index/", backend::resolveIndex);
             elsewhere.createContext("/", exchange -> {
                 backend.elsewhereHits.add(String.valueOf(exchange.getRequestHeaders().getFirst("Authorization")));
@@ -157,7 +169,24 @@ final class StubBackend {
         resolveNotFound = value;
     }
 
+    /** The {@code title} sets of the PUT calls so far: {@code id title}. */
+    List<String> updates() {
+        return List.copyOf(updates);
+    }
+
+    /** The version {@code /api/server-info} reports from now on. */
+    void reportsVersion(String version) {
+        serverVersion = version;
+        versionHidden = false;
+    }
+
+    /** {@code /api/server-info} answers without a version, as a backend that hides it does. */
+    void hidesVersion() {
+        versionHidden = true;
+    }
+
     void reset() {
+        updates.clear();
         resolveNotFound = false;
         indexSearches.clear();
         resolutions.clear();
@@ -306,12 +335,86 @@ final class StubBackend {
         return parameters;
     }
 
+    /** What a probe reads: no credential, only the version. The stub does not count these calls as caller requests. */
+    private void serverInfo(HttpExchange exchange) throws IOException {
+        if (exchange.getRequestHeaders().getFirst("Authorization") != null) {
+            respond(exchange, 400, "{\"message\":\"the probe has no credential\"}");
+        } else if (versionHidden) {
+            respond(exchange, 200, "{\"name\":\"stub\"}");
+        } else {
+            respond(exchange, 200, "{\"name\":\"stub\",\"version\":\"" + serverVersion + "\"}");
+        }
+    }
+
+    private void comments(HttpExchange exchange, String path, String authorization) throws IOException {
+        if (EXPIRED_CREDENTIAL.equals(authorization)) {
+            respond(exchange, 401, "{\"message\":\"token expired\"}");
+            return;
+        }
+        String[] parts = path.split("/comments", 2);
+        String recordId = parts[0];
+        if (!OPEN_1.equals(recordId) && !OPEN_2.equals(recordId)) {
+            respond(exchange, 404, "{\"message\":\"no such record\"}");
+            return;
+        }
+        String rest = parts[1];
+        if (rest.startsWith("/")) {
+            int number = rest.substring(1).matches("[0-9]{1,3}") ? Integer.parseInt(rest.substring(1)) : 0;
+            if (number < 1 || number > COMMENTS) {
+                respond(exchange, 404, "{\"message\":\"no such comment\"}");
+            } else {
+                respond(exchange, 200, comment(number));
+            }
+            return;
+        }
+        Map<String, List<String>> parameters = parameters(exchange.getRequestURI().getRawQuery());
+        int start = Integer.parseInt(parameters.getOrDefault("start", List.of("0")).getFirst());
+        int limit = Integer.parseInt(parameters.getOrDefault("limit", List.of("10")).getFirst());
+        int end = Math.min(COMMENTS, start + limit);
+        List<String> rows = new ArrayList<>();
+        for (int number = start + 1; number <= end; number++) {
+            rows.add(comment(number));
+        }
+        respond(exchange, 200, "{\"comments\":[" + String.join(",", rows) + "],\"hasMore\":" + (end < COMMENTS) + "}");
+    }
+
+    /** Comment {@code number}: every fourth is filed under {@link #OPEN_2}, the others under {@link #OPEN_1}. */
+    static String comment(int number) {
+        String owner = number % 4 == 0 ? OPEN_2 : OPEN_1;
+        return "{\"id\":\"" + number + "\",\"recordId\":\"" + owner + "\",\"author\":\"jkowalski\",\"body\":\"comment "
+                + number + "\"}";
+    }
+
+    private void update(HttpExchange exchange, String id, String authorization) throws IOException {
+        if (EXPIRED_CREDENTIAL.equals(authorization)) {
+            respond(exchange, 401, "{\"message\":\"token expired\"}");
+            return;
+        }
+        String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+        Matcher title = Pattern.compile("\"title\":\"((?:[^\"\\\\]|\\\\.)*)\"").matcher(body);
+        if (!title.find()) {
+            respond(exchange, 400, "{\"message\":\"no title\"}");
+            return;
+        }
+        String known = batchRecord(id);
+        if (known == null) {
+            respond(exchange, 404, "{\"message\":\"no such record\"}");
+            return;
+        }
+        updates.add(id + " " + title.group(1));
+        respond(exchange, 200, known.replaceFirst("\"title\":\"[^\"]*\"", "\"title\":\"" + title.group(1).replace("$", "\\$") + "\""));
+    }
+
     private void handle(HttpExchange exchange) throws IOException {
         String authorization = exchange.getRequestHeaders().getFirst("Authorization");
         authorizations.add(String.valueOf(authorization));
         String id = exchange.getRequestURI().getPath().substring(RECORDS.length());
         String open = SampleScope.OPEN_PROJECT;
-        if (EXPIRED_CREDENTIAL.equals(authorization)) {
+        if (id.contains("/comments")) {
+            comments(exchange, id, authorization);
+        } else if ("PUT".equals(exchange.getRequestMethod())) {
+            update(exchange, id, authorization);
+        } else if (EXPIRED_CREDENTIAL.equals(authorization)) {
             respond(exchange, 401, "{\"message\":\"token expired\"}");
         } else if (OPEN_1.equals(id)) {
             respond(exchange, 200, "{\"id\":\"" + OPEN_1 + "\",\"project\":\"" + open + "\",\"projectClassification\":\"\","

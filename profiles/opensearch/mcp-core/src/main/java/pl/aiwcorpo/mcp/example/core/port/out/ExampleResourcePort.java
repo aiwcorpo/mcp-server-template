@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Optional;
 import pl.aiwcorpo.mcp.example.core.domain.ExampleRecord;
 import pl.aiwcorpo.mcp.example.core.domain.ExampleRecordHit;
+import pl.aiwcorpo.mcp.example.core.domain.ServerInfo;
 
 /** Outbound port to the backend system, implemented in mcp-integration. */
 public interface ExampleResourcePort {
@@ -24,4 +25,7 @@ public interface ExampleResourcePort {
      * {@code text} is passed as one quoted literal built by the server, never as query syntax from the model.
      */
     List<ExampleRecordHit> search(List<String> indices, String text, int limit);
+
+    /** What the backend says about itself, for the version probe; no credential (the probe runs outside any request). */
+    ServerInfo serverInfo();
 }

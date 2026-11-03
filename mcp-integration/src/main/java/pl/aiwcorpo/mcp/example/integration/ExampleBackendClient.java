@@ -82,6 +82,26 @@ public class ExampleBackendClient {
     }
 
     /**
+     * One GET without any credential, for what the backend tells everybody (the version probe runs outside a request, so
+     * there is no caller whose credential could be used, and a secret of the server itself is not kept).
+     */
+    <T> T getWithoutCredential(Class<T> type, String uri, Object... variables) {
+        return call(() -> client.get().uri(uri, variables).retrieve().body(type));
+    }
+
+    /** One PUT with the credential of the request and a JSON body; the body is built by the server, not by the model. */
+    <T> T put(Class<T> type, String uri, Object body, Object... variables) {
+        BackendCredential credential = CredentialContext.require(system);
+        return call(() -> client.put()
+                .uri(uri, variables)
+                .headers(credential::applyTo)
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve()
+                .body(type));
+    }
+
+    /**
      * Runs one backend call and maps its failures. 404 and 403 pass through as they are: for a single record they
      * mean "not visible" (the caller turns them into an empty result), for a search they are plain failures.
      */

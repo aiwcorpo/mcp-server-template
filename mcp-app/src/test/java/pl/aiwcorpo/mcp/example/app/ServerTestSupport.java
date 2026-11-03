@@ -45,6 +45,7 @@ abstract class ServerTestSupport {
 
     static final String SERVER_ID = "mcp-" + SYSTEM;
     static final String READ_GROUP = SERVER_ID + "-read";
+    static final String WRITE_GROUP = SERVER_ID + "-write";
     static final String ENDPOINT = "/mcp";
     static final Set<String> CONTRACT_SYSTEMS = contractSystems();
 
@@ -66,6 +67,20 @@ abstract class ServerTestSupport {
     @LocalServerPort
     int port;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    pl.aiwcorpo.mcp.platform.capability.BackendCapabilities capabilities;
+
+    /** Writes are closed until the version probe has answered, so a test that writes waits for its first answer. */
+    void awaitProbe() throws InterruptedException {
+        long deadline = System.nanoTime() + Duration.ofSeconds(20).toNanos();
+        while (capabilities.of("example").state() == pl.aiwcorpo.mcp.platform.capability.Capabilities.State.UNAVAILABLE
+                && System.nanoTime() < deadline) {
+            Thread.sleep(50);
+        }
+        assertThat(capabilities.of("example").state()).as("the probe of the stub backend")
+                .isNotEqualTo(pl.aiwcorpo.mcp.platform.capability.Capabilities.State.UNAVAILABLE);
+    }
+
     String baseUrl() {
         return "http://127.0.0.1:" + port;
     }
@@ -78,6 +93,12 @@ abstract class ServerTestSupport {
     /** The caller of most tests: a member of the read group of the system. */
     static void reader(TestGateway.Token user) {
         user.username("jkowalski").groups(Stream.concat(Stream.of(READ_GROUP), SampleScope.EXTRA_GROUPS.stream()).toList());
+    }
+
+    /** A caller who may also change records: the read group and the write group of the system. */
+    static void writer(TestGateway.Token user) {
+        user.username("jkowalski").groups(Stream.of(Stream.of(READ_GROUP, WRITE_GROUP), SampleScope.EXTRA_GROUPS.stream(), SampleScope.WRITE_GRANTS.stream())
+                .flatMap(group -> group).toList());
     }
 
     /** As {@link #clientWithCredential}, with the caller's token shaped by {@code user} (claims of a link call). */
@@ -102,6 +123,12 @@ abstract class ServerTestSupport {
      * closed {@code SystemId} list of the contracts. A trial system (outside the list) gets {@code internal_error}
      * instead; a real system must get the full error with the portal link, never {@code internal_error}.
      */
+    /** A refusal by the schema or by the tool: the model sent something the tool does not accept. */
+    static void assertInvalidArgument(McpSchema.CallToolResult result) {
+        assertThat(result.isError()).isTrue();
+        assertThat(text(result)).containsAnyOf("\"error\":\"invalid_argument\"", "input validation failed");
+    }
+
     static void assertCredentialRequired(McpSchema.CallToolResult result) {
         assertThat(result.isError()).isTrue();
         if (TRIAL_SYSTEM) {

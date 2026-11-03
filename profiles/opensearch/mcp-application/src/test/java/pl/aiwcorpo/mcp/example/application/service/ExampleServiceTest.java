@@ -10,6 +10,7 @@ import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 import pl.aiwcorpo.mcp.example.core.domain.ExampleRecord;
 import pl.aiwcorpo.mcp.example.core.domain.ExampleRecordHit;
+import pl.aiwcorpo.mcp.example.core.domain.ServerInfo;
 import pl.aiwcorpo.mcp.example.core.port.in.ExampleUseCase;
 import pl.aiwcorpo.mcp.example.core.port.out.ExampleResourcePort;
 
@@ -60,6 +61,11 @@ class ExampleServiceTest {
 
         @Override
         public String resolveIndices(String expression) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public ServerInfo serverInfo() {
             throw new UnsupportedOperationException();
         }
     }

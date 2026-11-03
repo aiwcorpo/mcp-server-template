@@ -10,6 +10,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import pl.aiwcorpo.mcp.example.core.domain.ExampleRecord;
 import pl.aiwcorpo.mcp.example.core.domain.ExampleRecordHit;
+import pl.aiwcorpo.mcp.example.core.domain.ServerInfo;
+import pl.aiwcorpo.mcp.example.core.domain.CommentPage;
+import pl.aiwcorpo.mcp.example.core.domain.RecordComment;
 import pl.aiwcorpo.mcp.example.core.port.out.ExampleResourcePort;
 
 /**
@@ -65,6 +68,60 @@ public class ExampleResourceAdapter implements ExampleResourcePort {
         return response.records().stream().map(RecordResponse::toHit).toList();
     }
 
+    @Override
+    public ServerInfo serverInfo() {
+        ServerInfoResponse response = backend.getWithoutCredential(ServerInfoResponse.class, "/api/server-info");
+        if (response == null) {
+            throw new BackendResponseException("empty body");
+        }
+        return new ServerInfo(response.version());
+    }
+
+    @Override
+    public CommentPage listComments(String recordId, int start, int limit) {
+        CommentsResponse response;
+        try {
+            response = backend.get(CommentsResponse.class, "/api/records/{id}/comments?start={start}&limit={limit}",
+                    recordId, start, limit);
+        } catch (HttpClientErrorException.NotFound | HttpClientErrorException.Forbidden hidden) {
+            return new CommentPage(List.of(), null);
+        }
+        if (response == null || response.comments() == null) {
+            throw new BackendResponseException("empty body");
+        }
+        int returned = response.comments().size();
+        Integer next = response.hasMore() && returned > 0 ? start + returned : null;
+        return new CommentPage(response.comments().stream().map(CommentResponse::toDomain).toList(), next);
+    }
+
+    @Override
+    public Optional<RecordComment> findComment(String recordId, String commentId) {
+        CommentResponse response;
+        try {
+            response = backend.get(CommentResponse.class, "/api/records/{id}/comments/{commentId}", recordId, commentId);
+        } catch (HttpClientErrorException.NotFound | HttpClientErrorException.Forbidden hidden) {
+            return Optional.empty();
+        }
+        if (response == null) {
+            throw new BackendResponseException("empty body");
+        }
+        return Optional.of(response.toDomain());
+    }
+
+    @Override
+    public Optional<ExampleRecord> updateTitle(String recordId, String title) {
+        RecordResponse response;
+        try {
+            response = backend.put(RecordResponse.class, "/api/records/{id}", Map.of("title", title), recordId);
+        } catch (HttpClientErrorException.NotFound | HttpClientErrorException.Forbidden hidden) {
+            return Optional.empty();
+        }
+        if (response == null) {
+            throw new BackendResponseException("empty body");
+        }
+        return Optional.of(response.toDomain());
+    }
+
     /** The backend's representation; unknown fields are dropped here and never reach the model. */
     @JsonIgnoreProperties(ignoreUnknown = true)
     record RecordResponse(String id, String project, String projectClassification, String title, String status) {
@@ -89,5 +146,24 @@ public class ExampleResourceAdapter implements ExampleResourcePort {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record SearchResponse(List<RecordResponse> records) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record ServerInfoResponse(String version) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record CommentResponse(String id, String recordId, String author, String body) {
+
+        RecordComment toDomain() {
+            if (id == null || id.isBlank()) {
+                throw new BackendResponseException("comment without id");
+            }
+            return new RecordComment(id, recordId, author, body);
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record CommentsResponse(List<CommentResponse> comments, boolean hasMore) {
     }
 }

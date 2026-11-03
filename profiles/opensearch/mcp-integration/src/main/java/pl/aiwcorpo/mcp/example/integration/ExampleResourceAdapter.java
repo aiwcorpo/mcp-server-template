@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import pl.aiwcorpo.mcp.example.core.domain.ExampleRecord;
 import pl.aiwcorpo.mcp.example.core.domain.ExampleRecordHit;
+import pl.aiwcorpo.mcp.example.core.domain.ServerInfo;
 import pl.aiwcorpo.mcp.example.core.port.out.ExampleResourcePort;
 import pl.aiwcorpo.mcp.platform.resource.QueryScope;
 
@@ -95,6 +96,15 @@ public class ExampleResourceAdapter implements ExampleResourcePort {
         return response.records().stream().map(RecordResponse::toHit).toList();
     }
 
+    @Override
+    public ServerInfo serverInfo() {
+        ServerInfoResponse response = backend.getWithoutCredential(ServerInfoResponse.class, "/api/server-info");
+        if (response == null) {
+            throw new BackendResponseException("empty body");
+        }
+        return new ServerInfo(response.version());
+    }
+
     /** The backend's representation; unknown fields are dropped here and never reach the model. */
     @JsonIgnoreProperties(ignoreUnknown = true)
     record RecordResponse(String id, String project, String projectClassification, String title, String status) {
@@ -119,5 +129,9 @@ public class ExampleResourceAdapter implements ExampleResourcePort {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record SearchResponse(List<RecordResponse> records) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record ServerInfoResponse(String version) {
     }
 }

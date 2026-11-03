@@ -50,6 +50,19 @@ final class SampleScope {
     /** Whether the server hands the requested project to the system inside the query (JQL, CQL) instead of checking it itself. */
     static final boolean QUERY_CARRIES_PROJECT = false;
 
+
+    /**
+     * Whether the server has the comment tools and {@code update_record}. False for OpenSearch, a read-only system
+     * whose tools are the searches; its profile keeps only the version probe.
+     */
+    static final boolean FULL_TOOL_SET = true;
+
+    /**
+     * Groups that grant the scope of {@link #OPEN_PROJECT} in the example policy bundle of the contracts: a change needs
+     * a grant, reading needs only the read group. Empty where {@link #EXTRA_GROUPS} already carries it.
+     */
+    static final List<String> WRITE_GRANTS = List.of();
+
     static final String OPEN_PROJECT = "42";
     static final String OTHER_PROJECT = "DEF";
     static final String RESTRICTED_PROJECT = "HR";

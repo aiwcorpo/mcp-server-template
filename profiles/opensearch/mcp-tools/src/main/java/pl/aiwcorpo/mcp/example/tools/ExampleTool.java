@@ -35,6 +35,11 @@ public class ExampleTool {
     private final ExampleUseCase useCase;
     private final ResourcePolicy policy;
 
+    /** The tool class for the build step that writes the manifest: it only reads the annotations, nothing is called. */
+    public static ExampleTool forManifest() {
+        return new ExampleTool(null, null);
+    }
+
     public ExampleTool(ExampleUseCase useCase, ResourcePolicy policy) {
         this.useCase = useCase;
         this.policy = policy;

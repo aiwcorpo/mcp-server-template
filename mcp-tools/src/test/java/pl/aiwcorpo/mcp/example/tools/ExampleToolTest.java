@@ -19,7 +19,7 @@ import tools.jackson.databind.json.JsonMapper;
 /** What the tool class checks itself and what its schemas publish; the policy and the wire are tested in mcp-app. */
 class ExampleToolTest {
 
-    private final ExampleTool tool = new ExampleTool(query -> List.of(), null);
+    private final ExampleTool tool = new ExampleTool(new NoBackendUseCase(), null, null, null);
 
     @Test
     void searchRejectsABlankOrTooLongTextWithAFixedMessage() {
@@ -54,14 +54,57 @@ class ExampleToolTest {
             assertThat(schema.path("additionalProperties").asBoolean(true)).as(callback.getToolDefinition().name()).isFalse();
             assertThat(schema.toString()).doesNotContain("$ref", "anyOf", "oneOf");
         }
-        assertThat(callbacks[0].getToolDefinition().name()).isEqualTo("get_record");
-        JsonNode recordId = json.readTree(callbacks[0].getToolDefinition().inputSchema()).path("properties").path("recordId");
+        JsonNode recordId = json.readTree(schemaOf(callbacks, "get_record")).path("properties").path("recordId");
         assertThat(recordId.path("maxLength").asInt()).isEqualTo(ExampleResourceModel.RECORD_ID_MAX_LENGTH);
         assertThat(recordId.path("pattern").asString()).startsWith("^").endsWith("$");
 
-        assertThat(callbacks[1].getToolDefinition().name()).isEqualTo("search_records");
-        JsonNode properties = json.readTree(callbacks[1].getToolDefinition().inputSchema()).path("properties");
+        JsonNode properties = json.readTree(schemaOf(callbacks, "search_records")).path("properties");
         assertThat(properties.path("project").path("pattern").asString()).startsWith("^").endsWith("$");
         assertThat(properties.path("text").path("maxLength").asInt()).isEqualTo(ExampleTool.SEARCH_TEXT_MAX_LENGTH);
+    }
+
+    @Test
+    void everyToolOfTheServerIsListedAndTheChangeIsAnUpdate() {
+        ToolCallback[] callbacks = SchemaLimitedToolCallbacks.of(tool).getToolCallbacks();
+
+        assertThat(java.util.Arrays.stream(callbacks).map(callback -> callback.getToolDefinition().name()))
+                .containsExactlyInAnyOrder("get_record", "search_records", "list_comments", "get_comment", "update_record");
+        JsonNode cursor = json().readTree(schemaOf(callbacks, "list_comments")).path("properties").path("cursor");
+        assertThat(cursor.path("maxLength").asInt()).isEqualTo(pl.aiwcorpo.mcp.platform.paging.CursorCodec.MAX_CURSOR_LENGTH);
+        JsonNode commentId = json().readTree(schemaOf(callbacks, "get_comment")).path("properties").path("commentId");
+        assertThat(commentId.path("pattern").asString()).isEqualTo(ExampleTool.COMMENT_ID_PATTERN);
+    }
+
+    private static JsonMapper json() {
+        return JsonMapper.builder().build();
+    }
+
+    private static String schemaOf(ToolCallback[] callbacks, String name) {
+        return java.util.Arrays.stream(callbacks).filter(callback -> callback.getToolDefinition().name().equals(name))
+                .findFirst().orElseThrow().getToolDefinition().inputSchema();
+    }
+
+    /** A use case that must not be called: these tests only look at what the tool class checks itself. */
+    private static final class NoBackendUseCase implements pl.aiwcorpo.mcp.example.core.port.in.ExampleUseCase {
+
+        @Override
+        public List<pl.aiwcorpo.mcp.example.core.domain.ExampleRecordHit> searchRecords(String query) {
+            return List.of();
+        }
+
+        @Override
+        public pl.aiwcorpo.mcp.example.core.domain.CommentPage listComments(String recordId, int start) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public pl.aiwcorpo.mcp.example.core.domain.RecordComment getComment(String recordId, String commentId) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public ExampleRecord updateTitle(String recordId, String title) {
+            throw new UnsupportedOperationException();
+        }
     }
 }

@@ -47,8 +47,14 @@ aiwcorpo:
         # type the gateway resolves for this system; new-server.sh sets the list per system. A request whose
         # X-MCP-Credential-Type is outside the list is refused (internal_error).
         accepted-credential-types: ${MCP_ACCEPTED_CREDENTIAL_TYPES:user-secret}
+      # Key of the paging cursors (Base64, at least 32 bytes). Every instance behind the gateway needs the same one;
+      # without it each process draws its own, so a cursor does not survive a restart or a move to another instance.
+      paging:
+        cursor-key: ${MCP_PAGING_CURSOR_KEY:}
 
 example:
+  # Writes while the version of the backend is unreadable (the probe cannot tell). Never for a version known to be untested.
+  writes-on-unknown-version: ${MCP_EXAMPLE_WRITES_ON_UNKNOWN_VERSION:false}
   backend:
     base-url: ${MCP_EXAMPLE_URL:}
     ssl-bundle: ${MCP_EXAMPLE_SSL_BUNDLE:}

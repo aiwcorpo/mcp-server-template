@@ -24,7 +24,7 @@ ze startera, więc manifest odrzucany przez gateway zatrzymuje build. `manifest.
 `new-server.sh` ustawia `false` dla systemu z listy. `ManifestTest` porównuje definicje narzędzi z pliku z `tools/list` (bez `definitionHash`, który obejmuje typy poświadczeń;
 test ustawia jeden typ, produkcja pełną listę). `tests/new-server-test.sh --build` sprawdza, że pięć serwerów ma plik, a `demo` nie. Z testów usunięte `manifest.output-file`.
 `McpToolsConfiguration.mcpTools` jest publiczne (czyta je eksporter). Wzorzec dla ws-04: skopiować `ManifestExport`, blok `exec-maven-plugin` i właściwość `manifest.export.skip=false`
-z wygenerowanego serwera (albo przenieść różnicą z `new-server.sh jira /tmp/ref`); nową klasę narzędzi dopisać i w `McpToolsConfiguration`, i w `ManifestExport.manifest()` (eksporter tworzy je z `null` zamiast zależności).
+z wygenerowanego serwera (albo przenieść różnicą z `new-server.sh jira ../ref`); nową klasę narzędzi dopisać i w `McpToolsConfiguration`, i w `ManifestExport.manifest()` (eksporter tworzy je z `null` zamiast zależności).
 `./mvnw clean verify` w template'cie: 70 testów, 9 pominiętych; `--build`: 0 błędów.
 
 ## M4c: beta-7 -> beta-8 (2026-10-29)
@@ -239,8 +239,7 @@ Pełnego przebiegu z prawdziwym gateway'em nie robiłem (test integracyjny z ws-
 ## Jak wygenerować serwer (dla ws-04)
 
 ```bash
-cd <workspace>/mcp-server-template
-export JAVA_HOME=/opt/homebrew/Cellar/openjdk@25/25.0.4.1/libexec/openjdk.jdk/Contents/Home
+cd mcp-server-template
 ./mvnw -B verify                           # raz: kontrakty w ~/.m2 (skrypt czyta z nich SystemId)
 ./new-server.sh jira                       # -> ../mcp-server-jira (nie może istnieć)
 cd ../mcp-server-jira && git init && ./mvnw -B verify   # 62 testy, bez zmian
@@ -280,8 +279,8 @@ Serwery ws-04 wygenerowane z 7f65f8f. Najprościej: wygenerować świeżą kopi�
 pliki z listy (nazwy po zamianie, przykład dla `jira`; `<S>` = `Jira`, `<s>` = `jira`):
 
 ```bash
-cd <workspace>/mcp-server-template && ./new-server.sh jira /tmp/mcp-server-jira-ref
-diff -ru /tmp/mcp-server-jira-ref <repo serwera> -x .git -x target
+cd mcp-server-template && ./new-server.sh jira ../mcp-server-jira-ref
+diff -ru ../mcp-server-jira-ref <repo serwera> -x .git -x target
 ```
 
 1. `pom.xml`: `<mcp-platform.version>3.0.0-alpha-5</mcp-platform.version>`.

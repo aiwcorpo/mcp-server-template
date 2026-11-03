@@ -13,7 +13,8 @@
 # types, how a record is described to the policy, test ids) replace their counterparts (files without a counterpart are
 # added), and the credential type of
 # the system goes into the configuration. Template-only files (this
-# script, its test, STATUS.md, docs/nowy-serwer.md, profiles/) are not copied. The CI files (ci/run.sh, Makefile,
+# script, its test, STATUS.md, CHANGELOG.md, docs/nowy-serwer.md, profiles/) are not copied; the generated server gets a
+# CHANGELOG.md of its own. LICENSE, NOTICE, SECURITY.md, CONTRIBUTING.md and the release workflow are copied. The CI files (ci/run.sh, Makefile,
 # .gitlab-ci.yml, Jenkinsfile, .github/workflows/ci.yml, .ci/) are copied like any other file. Afterwards no
 # "example" may remain; on any failure the target directory is removed.
 set -euo pipefail
@@ -102,7 +103,7 @@ mkdir "$target"
 while IFS= read -r file; do
     [[ -f "$file" ]] || continue
     case "$file" in
-        new-server.sh | tests/new-server-test.sh | STATUS.md | docs/nowy-serwer.md | profiles/*) continue ;;
+        new-server.sh | tests/new-server-test.sh | STATUS.md | CHANGELOG.md | docs/nowy-serwer.md | profiles/*) continue ;;
     esac
     source="$file"
     if [[ "$trial" == false && -f "profiles/$system/$file" ]]; then
@@ -115,6 +116,16 @@ while IFS= read -r file; do
         chmod +x "$destination"
     fi
 done <<< "$files"
+
+cat > "$target/CHANGELOG.md" <<EOF
+# Changelog
+
+Format: wersje SemVer, od najnowszej. Do pierwszego wydania publicznego obowiazuje \`0.1.0-SNAPSHOT\`.
+
+## Niewydane
+
+- Wygenerowany z mcp-server-template dla systemu \`$system\`.
+EOF
 
 # Files only the system's profile has (extra tests of its own behavior).
 if [[ "$trial" == false && -d "profiles/$system" ]]; then

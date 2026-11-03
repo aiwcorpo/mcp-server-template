@@ -1,7 +1,10 @@
 # mcp-example: serwer MCP platformy
 
-Serwer MCP dla systemu `example`, zbudowany na `mcp-platform-starter` 3.0.0-beta-10 (Java 25, Spring Boot
-4.1.0, Spring AI 2.0.0, kontrakty `mcp-contracts` 5.1.0). Stoi wyłącznie za gateway'em platformy: przyjmuje
+Szablon serwera MCP dla platformy i zarazem działający serwer przykładowy (system `example`), zbudowany na
+`mcp-platform-starter` 3.0.0-beta-14 (Java 25, Spring Boot 4.1.0, Spring AI 2.0.0, kontrakty `mcp-contracts` 6.3.2).
+Repozytorium jest narzędziem dla autorów serwerów: `new-server.sh <system>` robi z niego nowy serwer
+(`docs/nowy-serwer.md`), a ten plik README trafia do każdego wygenerowanego serwera, który jest już produktem do
+wdrożenia obok gateway'a. Dokumentacja platformy: repozytorium `mcp-docs`. Serwer stoi wyłącznie za gateway'em platformy: przyjmuje
 ruch tylko po mTLS z wewnętrznym JWT gateway'a (C2), a do systemu docelowego woła z poświadczeniem
 użytkownika, które gateway dołącza do każdego żądania (C3). Bez poprawnego JWT odpowiada 401, nie ma trybu
 anonimowego.
@@ -14,12 +17,14 @@ Cedar (C7), którą ocenia gateway, i odmawia dostępu do zasobów zastrzeżonyc
 ## Szybki start
 
 ```bash
-export JAVA_HOME=/opt/homebrew/Cellar/openjdk@25/25.0.4.1/libexec/openjdk.jdk/Contents/Home
 ./mvnw verify                 # build, testy przez TestGateway i atrapę backendu; jar: mcp-app/target/mcp-example.jar
 ```
 
+Potrzebny jest JDK 25 (`ci/run.sh verify` sam go szuka; `./mvnw` wymaga `JAVA_HOME` ustawionego na JDK 25). Linux i macOS z
+bash 3.2 lub nowszym; Windows tylko przez WSL2.
+
 Wersja startera to właściwość `mcp-platform.version` w `pom.xml` (importuje ją `mcp-platform-bom`, który przypina też
-kontrakty 5.1.0); `new-server.sh` czyta wersję z tej właściwości, więc podbicie robi się w jednym miejscu.
+kontrakty 6.3.2); `new-server.sh` czyta wersję z tej właściwości, więc podbicie robi się w jednym miejscu.
 
 Testy nie potrzebują Dockera ani środowiska `mcp-platform-dev`: `TestGateway` z `mcp-platform-test` wystawia
 JWKS z kluczy testowych kontraktów i podpisuje wewnętrzne JWT, a `StubBackend` (test) udaje API systemu.
@@ -28,10 +33,10 @@ JWKS z kluczy testowych kontraktów i podpisuje wewnętrzne JWT, a `StubBackend`
 
 | Moduł | Co w nim jest | W tym serwerze |
 | --- | --- | --- |
-| `mcp-core` | domena i porty, czysta Java | `ExampleRecord`, `ExampleRecordHit`, `ExampleResourceModel` (typy zasobów polityki, wzorce identyfikatorów z kontraktów), port wejściowy `ExampleUseCase`, port wyjściowy `ExampleResourcePort` |
+| `mcp-core` | domena i porty, czysta Java | `ExampleRecord`, `ExampleRecordHit`, `RecordComment`, `CommentPage`, `ServerInfo`, `ObservedVersions`, `ExampleResourceModel` (typy zasobów polityki, wzorce identyfikatorów z kontraktów), port wejściowy `ExampleUseCase`, port wyjściowy `ExampleResourcePort` |
 | `mcp-application` | przypadki użycia (bez Springa) | `ExampleService` |
-| `mcp-integration` | adaptery wyjściowe do systemu | `ExampleBackendClient` (REST, poświadczenie z C3 dowolnego typu, timeouty, bez przekierowań, `https` poza `dev`, mapowanie błędów), `ExampleResourceAdapter` (ścieżki i odpowiedzi API, 404 i 403 jako "nie widać"), `BoundedBodyInterceptor` (limit rozmiaru odpowiedzi), `BackendResponseException` (odpowiedź bez treści w komunikacie), `ExampleBackendProperties`, `ExampleRecordResolver` (`ResourceResolver`: rekord z systemu poświadczeniem wywołującego), `fetchAll` w resolverze (jedno wywołanie na hity wyszukiwania), `ExampleResourceDescription` (rekord jako zasób polityki: id, rodzic i klasyfikacja z odpowiedzi systemu) |
-| `mcp-tools` | narzędzia MCP, powierzchnia publiczna | `ExampleTool` (`get_record`, `search_records`), `ExampleSearchQuery` (zapytanie do systemu budowane przez serwer), `ExampleRecordView` i `ExampleSearchView` (wyniki z `UntrustedText`, hit z `@ResourceRef`); `@ArgumentLimits` i `SchemaLimitedToolCallbacks` pochodzą ze startera (limity argumentów w `inputSchema`) |
+| `mcp-integration` | adaptery wyjściowe do systemu | `ExampleBackendClient` (REST, poświadczenie z C3 dowolnego typu, timeouty, bez przekierowań, `https` poza `dev`, mapowanie błędów), `ExampleResourceAdapter` (ścieżki i odpowiedzi API, 404 i 403 jako "nie widać"), `BoundedBodyInterceptor` (limit rozmiaru odpowiedzi), `BackendResponseException` (odpowiedź bez treści w komunikacie), `ExampleBackendProperties`, `ExampleRecordResolver` (`ResourceResolver`: rekord z systemu poświadczeniem wywołującego), `fetchAll` w resolverze (jedno wywołanie na hity wyszukiwania), `ExampleResourceDescription` (rekord jako zasób polityki: id, rodzic i klasyfikacja z odpowiedzi systemu), `ExampleCapabilityProbe` (sonda wersji systemu) |
+| `mcp-tools` | narzędzia MCP, powierzchnia publiczna | `ExampleTool` (`get_record`, `search_records`, `list_comments`, `get_comment`, `update_record`), `ExampleWriteGate` (zapis tylko dla przetestowanej wersji), `ExampleToolErrors` (błędy domenowe jako C10), `ExampleSearchQuery` (zapytanie do systemu budowane przez serwer), `ExampleRecordView`, `ExampleSearchView`, `ExampleCommentItem` i `ExampleUpdateView` (wyniki z `UntrustedText`, hit z `@ResourceRef`); `@ArgumentLimits` i `SchemaLimitedToolCallbacks` pochodzą ze startera (limity argumentów w `inputSchema`) |
 | `mcp-app` | bootstrap, wiring, jedyny jar, testy end-to-end | `McpServerApplication`, `McpToolsConfiguration` (lista narzędzi), `ApplicationWiringConfiguration` |
 
 Zależności idą do środka: `mcp-tools` -> `mcp-application` -> `mcp-core` <- `mcp-integration`; `mcp-app` składa
@@ -44,6 +49,9 @@ systemu, nie z argumentu narzędzia.
 | --- | --- | --- | --- | --- | --- | --- |
 | `get_record` | Pobierz rekord | `READ_ONLY` | `read` | `mcp-example-read` | `recordId` z `@ResourceRef`, wzorzec i długość z kontraktu (`ExampleResourceModel`) | `{id, project, title, status}`; `not_found_or_denied` (brak rekordu, 404 i 403 z systemu, projekt `restricted`, rekord przeniesiony do takiego projektu, klasyfikacja nieznana), `access_denied` (brak grupy), `credential_required`, `invalid_argument`, `upstream_unavailable`, `internal_error` |
 | `search_records` | Szukaj rekordów | `READ_ONLY` | `read` | `mcp-example-read` | `project` (zakres, wzorzec z kontraktu), `text` (1-200 znaków); zapytanie do systemu buduje serwer | `{hits: [{id, title}]}`, najwyżej 50; zapytanie (JQL) buduje `StructuredQuery` z żądanego projektu i wartości od modelu, hity są filtrowane polityką (`ResultFilter`) |
+| `list_comments` | Lista komentarzy | `READ_ONLY` | `read` | `mcp-example-read` | `recordId` z `@ResourceRef`, `cursor` (opcjonalny, `CursorCodec`) | `{items: [{id, author, body}], nextCursor, truncated, omitted}`, 10 na stronę; komentarz zapisany pod innym rekordem odpada, a `PageFiller` czyta kolejne strony systemu, żeby krótka strona nie zdradzała, że coś odpadło; kursor jest szyfrowany i związany z użytkownikiem, narzędziem i rekordem |
+| `get_comment` | Pobierz komentarz | `READ_ONLY` | `read` | `mcp-example-read` | `recordId` z `@ResourceRef`, `commentId` (cyfry, do 12) | `{id, author, body}`; komentarz, którego system nie przypisuje do tego rekordu, daje `not_found_or_denied` tak samo jak nieistniejący |
+| `update_record` | Zmień tytuł rekordu | `UPDATE` | `update` | `mcp-example-write` | `recordId` z `@ResourceRef`, `title` (1-255 znaków, jedna linia) | `{id, title}`; ustawia wartość docelową, więc powtórzenie po `502` zostawia ten sam stan (CC-204); przy wersji systemu spoza przetestowanego zakresu `upstream_unavailable` i nic nie jest wysłane |
 
 Nazwa widziana przez klienta to `example__get_record` (prefiks dokłada gateway, C5). Tytuły są częścią definicji
 narzędzia, więc ich zmiana zmienia `definitionHash`.
@@ -64,6 +72,17 @@ oznacza: zwróć pusty wynik bez wywołania systemu. OpenSearch nie wysyła wzor
 i nazw niezgodnych z kontraktem; puste = nie pytaj), a wyszukiwanie dostaje je z `OPENSEARCH_SEARCH_PARAMETERS`. Indeks
 podany jako argument narzędzia przechodzi przez `resolveIndexArgument` (alias, indeks poza zakresem i nieznany to ten
 sam `not_found_or_denied`).
+
+## Wersje systemu i zapis
+
+`ExampleCapabilityProbe` czyta wersję (`GET /api/server-info`, bez poświadczenia: sonda działa poza żądaniem) i ocenia ją względem
+zakresu z kodu (`MIN_MAJOR`, `MIN_MINOR`, `MAX_MAJOR`; nowy serwer ustawia tu zakres, który naprawdę przetestował).
+Wersja w zakresie: `SUPPORTED`, odczyt i zapis. Starsza albo nowsza: `DEGRADED`, tylko odczyt. Bez odpowiedzi albo bez czytelnej
+wersji: `UNAVAILABLE`. Serwer wstaje w każdym stanie. `ExampleWriteGate` stoi na początku każdego narzędzia `UPDATE` i
+`DESTRUCTIVE` i zamyka zapis (fail closed): przed pierwszą odpowiedzią sondy i przy `UNAVAILABLE` zapis jest wyłączony do jawnego
+`MCP_EXAMPLE_WRITES_ON_UNKNOWN_VERSION=true`, a dla `DEGRADED` zawsze. `ObservedVersions` pamięta, że sonda uznała wersję za
+nieprzetestowaną, więc jedna nieudana sonda nie otwiera zapisu z powrotem. Stan widać w logu (`backend capability: probe=example ...`),
+w metryce `mcp_backend_capability` i w szczególe `backendCapability` zdrowia (z wewnętrznym JWT).
 
 ## Jak przechodzi wywołanie
 
@@ -104,6 +123,8 @@ wyłącza TLS i mTLS, trzyma `jti` w pamięci i dopuszcza klucze testowe; starte
 | `MCP_POLICY_STATE_DIR` | katalog na instancję z rewizją ostatniej przyjętej paczki; chroni przed cofnięciem po restarcie | wymagane |
 | `MCP_INTERNAL_URL` | adres serwera w manifeście (`https://mcp-example.internal:8443/mcp`) | wymagane |
 | `MCP_ACCEPTED_CREDENTIAL_TYPES` | typy poświadczeń, które serwer przyjmuje (manifest); musi zawierać `credential-type` | zależy od systemu (niżej) |
+| `MCP_PAGING_CURSOR_KEY` | klucz kursorów (Base64, co najmniej 32 bajty, `openssl rand -base64 32`); ten sam na wszystkich instancjach, traktowany jak sekret; bez niego każdy proces losuje własny, więc kursor nie przeżywa restartu | zalecane |
+| `MCP_EXAMPLE_WRITES_ON_UNKNOWN_VERSION` | `true` otwiera zapis, gdy sonda nie odczytała wersji; wersja uznana za nieprzetestowaną zostaje tylko do odczytu | `false` |
 | `MCP_PORT`, `MCP_BIND` | port i adres nasłuchu | `8443`, `0.0.0.0` |
 
 Typ domyślny poświadczenia (`context.credentialType` w każdym żądaniu Cedar) to pierwszy z `manifest.accepted-credential-types`
@@ -147,7 +168,7 @@ mieć nazwę z tej listy (`new-server.sh` innej nie przyjmie bez `--trial`). Ser
 tylko w profilu `dev`, z ostrzeżeniem w logu.
 
 `java` w `PATH` może być starsza niż 25 (wtedy `UnsupportedClassVersionError`), dlatego poniżej zawsze
-`$JAVA_HOME/bin/java`.
+`$JAVA_HOME/bin/java`, z `JAVA_HOME` ustawionym na JDK 25.
 
 ## CI
 
@@ -159,13 +180,13 @@ to cienkie nakładki, więc to samo działa lokalnie, w obrazie `maven:3.9.12-ec
 | `ci/run.sh verify` (domyślny) | `hygiene`, `mvnw clean verify`, potem kontrola, że uruchomiono co najmniej jeden test (pominięte nie liczą się) i że serwer systemu z `SystemId` zapisał `mcp-app/target/mcp-manifest.json` |
 | `ci/run.sh hygiene` | cudzysłowy, spacje i wielokropek spoza ASCII oraz ślady narzędzi w źródłach (perl czyta przez `<<>>`) |
 | `ci/run.sh generator` | tylko template: `tests/new-server-test.sh --build` (każdy wygenerowany serwer się buduje i przechodzi testy); nakładki uruchamiają go tylko, gdy ten plik istnieje |
-| `ci/run.sh image` | `docker build` jaru z `verify` jako `mcp-server-<system>:<prefiks>-<sha7>` (prefiks z `CI_IMAGE_TAG_PREFIX`, domyślnie `m5`); tylko gałąź `main`, wymaga demona Dockera |
+| `ci/run.sh image` | `docker build` jaru z `verify` jako `mcp-server-<system>:<prefiks>-<sha7>` (prefiks z `CI_IMAGE_TAG_PREFIX`, domyślnie `m6`); tylko gałąź `main`, wymaga demona Dockera |
 
 Inny argument kończy się kodem 2. Merge request i pull request nie dostają sekretów ani gniazda Dockera: testy nie
 potrzebują kontenerów, a rejestr Maven z artefaktami platformy (`MCP_MAVEN_REPOSITORY_URL`, zwykła zmienna) jest wtedy
 czytany anonimowo (`.ci/settings-anonymous.xml`). Dane dostępu (`MCP_MAVEN_REPOSITORY_USER`, `_PASSWORD`; w GitLabie
 zmienne Protected i Masked, w Jenkinsie poświadczenie `mcp-maven-registry`) widzi tylko gałąź `main`, na której działa też
-krok `image` (runner z gniazdem Dockera; w GitLabie tag `docker-socket` musi należeć do runnera chronionego (protected), inaczej gniazdo trafiłoby w ręce merge requestu; w GitHubie sekrety są w Environment `ci-main`). Moduły z wymaganymi testami: `CI_TEST_MODULES` (domyślnie `mcp-application mcp-tools mcp-app`), dolna granica dla `mcp-app`: `CI_APP_MIN_TESTS` (20). Rejestracja manifestu w gateway'u (`PUT` z certyfikatem
+krok `image` (runner z gniazdem Dockera; w GitLabie tag `docker-socket` musi należeć do runnera chronionego (protected), inaczej gniazdo trafiłoby w ręce merge requestu; w GitHubie sekrety są w Environment `ci-main`). Moduły z wymaganymi testami: `CI_TEST_MODULES` (domyślnie `mcp-application mcp-integration mcp-tools mcp-app`), dolna granica dla `mcp-app`: `CI_APP_MIN_TESTS` (40). Rejestracja manifestu w gateway'u (`PUT` z certyfikatem
 `mcp-registry-ci-<serverId>`) jest osobnym krokiem pipeline'u serwera, bo wymaga sekretu, którego template nie zna.
 
 ## Uruchomienie lokalne bez środowiska
@@ -175,7 +196,6 @@ certyfikatów i sekretów. Gateway'a nie ma, więc każde żądanie z JWT kończ
 służy do sprawdzenia, że serwer wstaje i odrzuca ruch bez JWT. Narzędzia sprawdzają testy (`./mvnw verify`).
 
 ```bash
-export JAVA_HOME=/opt/homebrew/Cellar/openjdk@25/25.0.4.1/libexec/openjdk.jdk/Contents/Home
 ./mvnw -B verify
 SPRING_PROFILES_ACTIVE=dev MCP_PORT=18491 "$JAVA_HOME/bin/java" -jar mcp-app/target/mcp-example.jar
 # w drugim terminalu:
@@ -208,8 +228,7 @@ ich odczytu. Przykład dla serwera `mcp-jira` (wygenerowanego `new-server.sh jir
 `JIRA` w nazwach):
 
 ```bash
-export JAVA_HOME=/opt/homebrew/Cellar/openjdk@25/25.0.4.1/libexec/openjdk.jdk/Contents/Home
-export MCP_PLATFORM_DEV=<workspace>/mcp-platform-dev           # ścieżka bezwzględna
+export MCP_PLATFORM_DEV=/path/to/mcp-platform-dev           # katalog repozytorium, ścieżka bezwzględna
 export MCP_TLS_STORE_PASSWORD="$(grep '^TLS_STORE_PASSWORD=' "$MCP_PLATFORM_DEV/.secrets/dev.env" | cut -d= -f2-)"
 export MCP_REDIS_PASSWORD="$(grep '^REDIS_MCP_JIRA_PASSWORD=' "$MCP_PLATFORM_DEV/.secrets/dev.env" | cut -d= -f2-)"
 export MCP_TLS_KEYSTORE="$MCP_PLATFORM_DEV/certs/mcp-jira/keystore.p12"
@@ -282,8 +301,13 @@ metryka `mcp_server_devstack_active` ma wartość 1. Bez obu zgód albo z drugim
 | `ProductionConfigurationTest` | typ domyślny jest pierwszym z `accepted-credential-types` (baza i `dev`), brak `credential-type`; konfiguracja bazowa: `client-auth: need`, paczka polityk i manifest wymagane, bez kluczy testowych; klucze testowe i repozytorium polityk dev tylko w `application-dev.yml`; backend `http` poza `dev` odrzucony (chyba że jawnie dopuszczony); `dev` na 127.0.0.1 |
 | `IndexResolutionTest` (tylko serwer OpenSearch) | wzorce zakresu idą tylko do `_resolve/index`, wyszukiwanie dostaje nazwy bez aliasu i parametry listy nazw, brak grantu nie woła systemu |
 | `DevProfileLoopbackTest` | reguła adresu `dev` (`assertDevProfileLoopbackRule`) i obecność guardów w kontekście serwera (`assertServerIsGuarded`) |
-| `ExampleToolTest` | walidacja tekstu wyszukiwania (stały komunikat), limity i zamknięte schematy obu narzędzi, `get_record` z kontekstem z `TestResourceContext` |
-| `ExampleServiceTest` | limit wyników wyszukiwania bez Springa |
+| `CommentToolsTest` | strona komentarzy bez cudzych wpisów i dopełniona kolejnymi stronami systemu, kursor innego rekordu odrzucony, rekord spoza zakresu daje ten sam błąd co brakujący, komentarz zapisany pod innym rekordem wygląda jak nieistniejący, id spoza wzorca nie dociera do systemu |
+| `UpdateRecordToolTest` | zmiana tytułu i wynik z systemu, powtórzenie daje ten sam stan, `UPDATE` bez `readOnlyHint` i `destructiveHint`, brak grupy zapisu, rekord `restricted`, zły tytuł, 401 systemu |
+| `DegradedModeTest` | wersja nieprzetestowana (bramka zapisu rzuca): zmiana odmówiona jako `upstream_unavailable` i nic nie zapisane, odczyty działają |
+| `VersionProbeTest` | sonda czyta wersję atrapy bez poświadczenia i serwer dostaje stan `SUPPORTED` z zapisem |
+| `ExampleToolTest` | walidacja tekstu wyszukiwania (stały komunikat), limity i zamknięte schematy narzędzi, pełna lista narzędzi, `get_record` z kontekstem z `TestResourceContext` |
+| `ExampleServiceTest` | limit wyników wyszukiwania, filtr przynależności komentarzy i sprawdzenie id komentarza, bez Springa |
+| `ExampleCapabilityProbeTest`, `ExampleWriteGateTest` | ocena wersji (w zakresie, starsza, nowsza, nieczytelna) i bramka zapisu we wszystkich stanach, także po nieudanej sondzie |
 
 Nowe narzędzie dostaje test w tym samym stylu: klasa dziedziczy po `ServerTestSupport`, odpowiedź systemu
 dopisuje się w `StubBackend`. Polityka w testach to paczka z przykładów kontraktów (`TestGateway`; dla serwera spoza pięciu systemów
@@ -293,6 +317,26 @@ generowana: grupy `mcp-<system>-read|write|destructive`, odczyt, `restricted`). 
 systemu z `SystemId`; `credential_required` jest w serwerze próbnym `internal_error`. 
 Identyfikatory przykładowych rekordów muszą pasować do wzorca typu zasobu z kontraktów (starter sprawdza go przed
 resolverem), dlatego `SampleScope` jest osobny dla każdego systemu.
+
+## Instalacja
+
+Wymagania, układ plików, kroki dla VM z systemd i typowe problemy: `docs/operations/deployment-vm-systemd.md`
+(`deploy/scripts/install.sh`, `update.sh`, `healthcheck.sh`, szablon środowiska `deploy/systemd/mcp-example.env.template`).
+Wariant kontenerowy: `Dockerfile` (po `./mvnw verify`; obraz `eclipse-temurin:25-jre`, glibc, bo `cedar-java` ładuje bibliotekę
+natywną, użytkownik `mcp`, port 8443, mTLS) i `ci/run.sh image`; kontener dostaje tę samą konfigurację ze zmiennych
+środowiska i plików TLS montowanych tylko do odczytu. Artefakty platformy (`mcp-platform-starter`, `mcp-contracts`) są w GitHub
+Packages organizacji `aiwcorpo`; przy budowie ze źródeł wystarczy `~/.m2` z nimi albo rejestr w `MCP_MAVEN_REPOSITORY_URL`
+(+ `_USER`, `_PASSWORD`), układ `settings.xml` opisuje README `mcp-starter-lib`, rozdział "Instalacja".
+
+## Codzienna obsługa
+
+- Zdrowie: `deploy/scripts/healthcheck.sh` (wymaga certyfikatu klienta); szczegół `backendCapability` pokazuje wersję systemu i stan sondy.
+- Aktualizacja: `deploy/scripts/update.sh <nowy.jar>`, wycofanie: przywrócić kopię `.bak`; po aktualizacji zarejestrować w
+  gateway'u świeży manifest z `mcp-app/target/mcp-manifest.json`.
+- `MCP_PAGING_CURSOR_KEY` jest taki sam na wszystkich instancjach; zmiana klucza unieważnia kursory w locie (żyją 15 minut), nic poza tym.
+- Wygasłe poświadczenia: użytkownik dostaje `credential_required` z odnośnikiem do portalu, po stronie serwera nic nie trzeba robić.
+- Audyt C8 idzie na stdout (journald), logger `pl.aiwcorpo.mcp.audit`; linia `backend capability: ... state=degraded` oznacza
+  zapis wyłączony do czasu przetestowania nowej wersji systemu.
 
 ## Dokumentacja
 

@@ -50,6 +50,13 @@ for ci_file in ci/run.sh Makefile .gitlab-ci.yml Jenkinsfile .github/workflows/c
 done
 check "ci/run.sh is executable and names the generated image" bash -c "test -x '$work/relative-jira/ci/run.sh' && grep -q 'mcp-server-jira:' '$work/relative-jira/ci/run.sh' && grep -q 'mcp-jira.jar' '$work/relative-jira/ci/run.sh'"
 check "ci/run.sh refuses an unknown step" bash -c "cd '$work/relative-jira' && ci/run.sh bogus >/dev/null 2>&1; test \$? -eq 2"
+for release_file in LICENSE NOTICE SECURITY.md CONTRIBUTING.md CHANGELOG.md .github/workflows/release.yml; do
+    check "generated server has $release_file" test -s "$work/relative-jira/$release_file"
+done
+check "generated CHANGELOG is its own" bash -c "grep -q '\`jira\`' '$work/relative-jira/CHANGELOG.md' && ! grep -qi 'sonda wersji' '$work/relative-jira/CHANGELOG.md'"
+check "every action in the workflows is pinned to a commit SHA" bash -c "! grep -hE '^\s*-?\s*uses:' '$work'/relative-jira/.github/workflows/*.yml | grep -vE 'uses: [^@ ]+@[0-9a-f]{40}\s*\$'"
+check "every image of the CI is pinned to a digest" bash -c "! grep -hE 'image:? .?(maven|docker):' '$work'/relative-jira/.github/workflows/*.yml '$work'/relative-jira/.gitlab-ci.yml '$work'/relative-jira/Jenkinsfile | grep -v '@sha256:'"
+check "the pom carries the licence" grep -q 'Apache License, Version 2.0' "$work/relative-jira/pom.xml"
 check "jira keeps the template's resource model" grep -q 'Jira::Issue' \
     "$work/relative-jira/mcp-core/src/main/java/pl/aiwcorpo/mcp/jira/core/domain/JiraResourceModel.java"
 check "no profiles directory in a generated server" test ! -e "$work/relative-jira/profiles"

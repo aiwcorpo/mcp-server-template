@@ -20,7 +20,7 @@ read is [A new server](https://github.com/aiwcorpo/mcp-docs/blob/main/docs/devel
 1. Build the template once (`./mvnw verify`, JDK 25). The generator reads the list of valid systems from the contracts jar in
    `~/.m2`.
 2. Generate the server. `<system>` must be one of the `SystemId` values of the contracts: `jira`, `confluence`, `gitlab`,
-   `servicedesk`, `opensearch`. Only such servers start outside the `dev` profile, and only for them `mcp-platform-dev` has
+   `servicedesk`, `opensearch`. Only such servers start outside the `dev` profile, and only for them the dev stack has
    certificates and Redis users.
 
    ```bash
@@ -70,7 +70,7 @@ read is [A new server](https://github.com/aiwcorpo/mcp-docs/blob/main/docs/devel
    contracts, which is why `SampleScope` differs per system.
 8. Finish the documentation and the deployment. Extend the generated README with the tools of the system (title, risk, action,
    group `mcp-<system>-read|write|destructive` and credential type), write your own `STATUS.md`,
-   and set the deployment variables from `deploy/systemd/mcp-<system>.env.template`. For `mcp-platform-dev` build the image
+   and set the deployment variables from `deploy/systemd/mcp-<system>.env.template`. For the dev stack build the image
    with `docker build -t mcp-<system>:dev .`; the Dockerfile cannot use Alpine because `cedar-java` needs glibc.
 
 ## What the sample server contains
@@ -136,7 +136,7 @@ system. The template itself and trial servers run only in the `dev` profile. A s
 Also available: `MCP_PAGING_CURSOR_KEY` (Base64, at least 32 bytes, the same on every instance, treated as a secret;
 without it each process makes its own and cursors do not survive a restart), `MCP_EXAMPLE_SSL_BUNDLE`,
 `MCP_EXAMPLE_WRITES_ON_UNKNOWN_VERSION`, `MCP_GATEWAY_ISSUER`, `MCP_PORT` (`8443`), `MCP_BIND`, and
-`MCP_EXAMPLE_ALLOW_PLAIN_HTTP`, which allows `http` outside `dev` and exists only for the mocks of `mcp-platform-dev`.
+`MCP_EXAMPLE_ALLOW_PLAIN_HTTP`, which allows `http` outside `dev` and exists only for the mocks of the dev stack.
 `MCP_ACCEPTED_CREDENTIAL_TYPES` lists the credential types the server accepts; the first one is the default and must match
 what the gateway and broker have for the system, otherwise registration fails with `credential_type_mismatch`. Defaults are in
 the [server environment reference](https://github.com/aiwcorpo/mcp-docs/blob/main/docs/reference/env-servers.md)
@@ -158,8 +158,8 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST -H 'Content-Type: application/j
 The `dev` profile accepts JWTs signed with the published test keys of the contracts and needs no client certificate. For that
 reason it listens on loopback only, and the starter refuses to start `dev` on another address. Never enable it on a host or in a
 container that the gateway connects to, and never put `SPRING_PROFILES_ACTIVE=dev` into an `.env` file, a systemd unit or an
-image. Running against the `mcp-platform-dev` environment (mTLS from the host, or the `devstack` profile in containers) is
-described in `mcp-docs`; it works only for the five systems of the contracts.
+image. Running against the dev stack (mTLS from the host, or the `devstack` profile in containers) needs a local stack that is not public yet;
+to run the platform use the Compose install in `mcp-docs` (`examples/compose`). It works only for the five systems of the contracts.
 
 ## Install
 

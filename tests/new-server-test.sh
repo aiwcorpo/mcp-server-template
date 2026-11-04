@@ -49,6 +49,7 @@ for ci_file in ci/run.sh Makefile .gitlab-ci.yml Jenkinsfile .github/workflows/c
     check "generated server has $ci_file" test -s "$work/relative-jira/$ci_file"
 done
 check "generated server has no registry settings" bash -c "test ! -e '$work/relative-jira/.ci' && ! grep -rIl 'MCP_MAVEN_REPOSITORY\\|maven.pkg.github.com\\|packages: read' '$work/relative-jira' --exclude-dir=target"
+check "generated Dockerfile keeps the source and licenses labels" bash -c "grep -q 'image.source=\"https://github.com/aiwcorpo/mcp-server-jira\"' '$work/relative-jira/Dockerfile' && grep -q 'image.licenses=\"Apache-2.0\"' '$work/relative-jira/Dockerfile'"
 check "pull request job: contents read only, no env" bash -c "awk '/verify-pull-request:/{f=1} /verify-main:/{f=0} f' '$work/relative-jira/.github/workflows/ci.yml' | grep -q 'contents: read' && ! awk '/verify-pull-request:/{f=1} /verify-main:/{f=0} f' '$work/relative-jira/.github/workflows/ci.yml' | grep -q 'env:\\|secrets\\.'"
 check "ci/run.sh is executable and names the generated image" bash -c "test -x '$work/relative-jira/ci/run.sh' && grep -q 'mcp-server-jira:' '$work/relative-jira/ci/run.sh' && grep -q 'mcp-jira.jar' '$work/relative-jira/ci/run.sh'"
 check "ci/run.sh refuses an unknown step" bash -c "cd '$work/relative-jira' && ci/run.sh bogus >/dev/null 2>&1; test \$? -eq 2"
@@ -64,7 +65,7 @@ for pom in pom.xml mcp-core/pom.xml mcp-application/pom.xml mcp-integration/pom.
     check "generated $pom starts at 0.1.0-SNAPSHOT" bash -c "test \$(grep -c '<version>0.1.0-SNAPSHOT</version>' '$work/relative-jira/$pom') -eq 1 && ! grep -q '<version>1.0.0</version>' '$work/relative-jira/$pom'"
 done
 check "generated server keeps the template's starter version" bash -c "grep -q '<mcp-platform.version>3.0.0</mcp-platform.version>' '$work/relative-jira/pom.xml'"
-check "every action in the workflows is pinned to a commit SHA" bash -c "! grep -hE '^\s*-?\s*uses:' '$work'/relative-jira/.github/workflows/*.yml | grep -vE 'uses: [^@ ]+@[0-9a-f]{40}\s*\$'"
+check "every action in the workflows is pinned to a commit SHA" bash -c "! grep -hE '^\s*-?\s*uses:' '$work'/relative-jira/.github/workflows/*.yml | grep -vE 'uses: [^@ ]+@[0-9a-f]{40}\s*(#.*)?\$'"
 check "every image of the CI is pinned to a digest" bash -c "! grep -hE 'image:? .?(maven|docker):' '$work'/relative-jira/.github/workflows/*.yml '$work'/relative-jira/.gitlab-ci.yml '$work'/relative-jira/Jenkinsfile | grep -v '@sha256:'"
 check "the pom carries the licence" grep -q 'Apache License, Version 2.0' "$work/relative-jira/pom.xml"
 check "jira keeps the template's resource model" grep -q 'Jira::Issue' \

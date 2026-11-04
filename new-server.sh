@@ -14,7 +14,7 @@
 # added), and the credential type of
 # the system goes into the configuration. Template-only files (this
 # script, its test, README.md, STATUS.md, CHANGELOG.md, profiles/) are not copied; the generated server gets a
-# CHANGELOG.md and a short README.md of its own. LICENSE, NOTICE, SECURITY.md, CONTRIBUTING.md and the release workflow are copied. The CI files (ci/run.sh, Makefile,
+# CHANGELOG.md and a short README.md of its own, both in English; the project version is reset to 0.1.0-SNAPSHOT. LICENSE, NOTICE, SECURITY.md, CONTRIBUTING.md and the release workflow are copied. The CI files (ci/run.sh, Makefile,
 # .gitlab-ci.yml, Jenkinsfile, .github/workflows/ci.yml) are copied like any other file. Afterwards no
 # "example" may remain; on any failure the target directory is removed.
 set -euo pipefail
@@ -90,6 +90,15 @@ rename() {
     perl -pe "s/example/$system/g; s/Example/$System/g; s/EXAMPLE/$SYSTEM/g"
 }
 
+# A generated server is a new product: it starts as a snapshot of 0.1.0, whatever version the template itself has reached.
+initial_version="0.1.0-SNAPSHOT"
+template_version="$(sed -n 's|^    <version>\(.*\)</version>$|\1|p' "$template/pom.xml" | head -n 1)"
+[[ -n "$template_version" ]] || { echo "no project version in $template/pom.xml" >&2; exit 1; }
+set_project_version() {
+    # Root pom (4 spaces) and the parent element of each module (8 spaces); the template has no dependency with its own version.
+    perl -pe "s#^(    |        )<version>\\Q$template_version\\E</version>\$#\$1<version>$initial_version</version>#"
+}
+
 cd "$template"
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     # Tracked files only: notes, .env files or build output lying around in the template stay out.
@@ -111,7 +120,10 @@ while IFS= read -r file; do
     fi
     destination="$target/$(printf '%s' "$file" | rename)"
     mkdir -p "$(dirname "$destination")"
-    rename < "$source" > "$destination"
+    case "$file" in
+        pom.xml | */pom.xml) rename < "$source" | set_project_version > "$destination" ;;
+        *) rename < "$source" > "$destination" ;;
+    esac
     if [[ -x "$source" ]]; then
         chmod +x "$destination"
     fi
@@ -120,11 +132,11 @@ done <<< "$files"
 cat > "$target/CHANGELOG.md" <<EOF
 # Changelog
 
-Format: wersje SemVer, od najnowszej. Do pierwszego wydania publicznego obowiazuje \`0.1.0-SNAPSHOT\`.
+Versions follow SemVer, newest first. Until the first release the working version is \`$initial_version\`.
 
-## Niewydane
+## Unreleased
 
-- Wygenerowany z mcp-server-template dla systemu \`$system\`.
+- Generated from mcp-server-template for the system \`$system\`.
 EOF
 
 developer_guide="https://github.com/aiwcorpo/mcp-docs/blob/main/docs/developer"

@@ -10,7 +10,7 @@
     <parent>
         <groupId>pl.aiwcorpo.mcp.example</groupId>
         <artifactId>mcp-example-parent</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>1.0.0</version>
     </parent>
     <artifactId>mcp-app</artifactId>
     <name>mcp-example :: App (bootstrap)</name>

@@ -59,7 +59,11 @@ check "generated README is its own, not the template's" bash -c "! cmp -s '$temp
 check "generated README names the jar and the manifest" bash -c "grep -q 'mcp-app/target/mcp-jira.jar' '$work/relative-jira/README.md' && grep -q 'mcp-manifest.json' '$work/relative-jira/README.md'"
 check "generated README links the developer guide of mcp-docs" bash -c "grep -q 'mcp-docs/blob/main/docs/developer/new-server.md' '$work/relative-jira/README.md' && grep -q 'mcp-docs/blob/main/docs/developer/tools.md' '$work/relative-jira/README.md'"
 check "generated server has no docs directory of the template" test ! -e "$work/relative-jira/docs"
-check "generated CHANGELOG is its own" bash -c "grep -q '\`jira\`' '$work/relative-jira/CHANGELOG.md' && ! grep -qi 'sonda wersji' '$work/relative-jira/CHANGELOG.md'"
+check "generated CHANGELOG is its own and in English" bash -c "grep -q '\`jira\`' '$work/relative-jira/CHANGELOG.md' && grep -q '^## Unreleased\$' '$work/relative-jira/CHANGELOG.md' && grep -q 'Versions follow SemVer' '$work/relative-jira/CHANGELOG.md' && ! grep -qi 'sonda wersji\|Niewydane\|wersje SemVer' '$work/relative-jira/CHANGELOG.md' && ! LC_ALL=C grep -q '[^ -~]' '$work/relative-jira/CHANGELOG.md'"
+for pom in pom.xml mcp-core/pom.xml mcp-application/pom.xml mcp-integration/pom.xml mcp-tools/pom.xml mcp-app/pom.xml; do
+    check "generated $pom starts at 0.1.0-SNAPSHOT" bash -c "test \$(grep -c '<version>0.1.0-SNAPSHOT</version>' '$work/relative-jira/$pom') -eq 1 && ! grep -q '<version>1.0.0</version>' '$work/relative-jira/$pom'"
+done
+check "generated server keeps the template's starter version" bash -c "grep -q '<mcp-platform.version>3.0.0</mcp-platform.version>' '$work/relative-jira/pom.xml'"
 check "every action in the workflows is pinned to a commit SHA" bash -c "! grep -hE '^\s*-?\s*uses:' '$work'/relative-jira/.github/workflows/*.yml | grep -vE 'uses: [^@ ]+@[0-9a-f]{40}\s*\$'"
 check "every image of the CI is pinned to a digest" bash -c "! grep -hE 'image:? .?(maven|docker):' '$work'/relative-jira/.github/workflows/*.yml '$work'/relative-jira/.gitlab-ci.yml '$work'/relative-jira/Jenkinsfile | grep -v '@sha256:'"
 check "the pom carries the licence" grep -q 'Apache License, Version 2.0' "$work/relative-jira/pom.xml"

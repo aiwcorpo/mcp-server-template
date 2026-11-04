@@ -4,7 +4,7 @@ Template for MCP servers of the aiwcorpo MCP platform, and a working server for 
 repository is a tool for people who write servers: `new-server.sh <system>` turns it into a new server such as `mcp-jira`.
 The generator writes a short README of its own for every new server; this one stays in the template.
 
-The template is built on `mcp-platform-starter` 3.0.0-beta-14 (Java 25, Spring Boot 4.1.0, Spring AI 2.0.0, `mcp-contracts`
+The template is built on `mcp-platform-starter` 3.0.0 (Java 25, Spring Boot 4.1.0, Spring AI 2.0.0, `mcp-contracts`
 6.3.2). A server made from it runs only behind the platform gateway: it accepts traffic over mTLS with the gateway's internal
 JWT and answers 401 without it, and it calls the backend system with the credential the gateway attaches to each request. The
 server does not log users in, decide who may call a tool or confirm actions; the gateway does. The server owns its tools, the

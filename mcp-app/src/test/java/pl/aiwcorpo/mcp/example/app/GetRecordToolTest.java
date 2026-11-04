@@ -91,7 +91,7 @@ class GetRecordToolTest extends ServerTestSupport {
                     .filter(t -> t.name().equals("get_record")).findFirst().orElseThrow();
 
             assertThat(tool.annotations().readOnlyHint()).isTrue();
-            assertThat(tool.title()).isEqualTo("Pobierz rekord");
+            assertThat(tool.title()).isEqualTo("Get record");
             assertThat(tool.inputSchema()).containsEntry("additionalProperties", false)
                     .doesNotContainKeys("$ref", "$defs", "anyOf", "oneOf");
             assertThat(tool.inputSchema()).extractingByKey("properties")

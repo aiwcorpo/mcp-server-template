@@ -52,7 +52,7 @@ public class ExampleTool {
      */
     @Tool(name = "get_record", description = "Returns one record by its id: id, project, title and status.")
     @ToolRisk(RiskLevel.READ_ONLY)
-    @ToolTitle("Pobierz rekord")
+    @ToolTitle("Get record")
     public ExampleRecordView getRecord(
             @ToolParam(description = "Record id as the system issues it")
             @ArgumentLimits(maxLength = ExampleResourceModel.RECORD_ID_MAX_LENGTH,
@@ -75,7 +75,7 @@ public class ExampleTool {
      */
     @Tool(name = "search_records", description = "Searches the titles of the records of one project for a text.")
     @ToolRisk(RiskLevel.READ_ONLY)
-    @ToolTitle("Szukaj rekordów")
+    @ToolTitle("Search records")
     public ExampleSearchView searchRecords(
             @ToolParam(description = "Project to search in, as the system names it")
             @ArgumentLimits(maxLength = ExampleResourceModel.PARENT_ID_MAX_LENGTH,

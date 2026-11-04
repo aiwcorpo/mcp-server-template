@@ -184,7 +184,7 @@ class SearchRecordsToolTest extends ServerTestSupport {
                     .filter(t -> t.name().equals("search_records")).findFirst().orElseThrow();
 
             assertThat(tool.annotations().readOnlyHint()).isTrue();
-            assertThat(tool.title()).isEqualTo("Szukaj rekordów");
+            assertThat(tool.title()).isEqualTo("Search records");
             assertThat(tool.inputSchema()).containsEntry("additionalProperties", false);
             assertThat(tool.inputSchema().get("properties")).asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
                     .containsOnlyKeys("project", "text");

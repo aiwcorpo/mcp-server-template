@@ -13,8 +13,8 @@
 # types, how a record is described to the policy, test ids) replace their counterparts (files without a counterpart are
 # added), and the credential type of
 # the system goes into the configuration. Template-only files (this
-# script, its test, STATUS.md, CHANGELOG.md, docs/nowy-serwer.md, profiles/) are not copied; the generated server gets a
-# CHANGELOG.md of its own. LICENSE, NOTICE, SECURITY.md, CONTRIBUTING.md and the release workflow are copied. The CI files (ci/run.sh, Makefile,
+# script, its test, README.md, STATUS.md, CHANGELOG.md, profiles/) are not copied; the generated server gets a
+# CHANGELOG.md and a short README.md of its own. LICENSE, NOTICE, SECURITY.md, CONTRIBUTING.md and the release workflow are copied. The CI files (ci/run.sh, Makefile,
 # .gitlab-ci.yml, Jenkinsfile, .github/workflows/ci.yml, .ci/) are copied like any other file. Afterwards no
 # "example" may remain; on any failure the target directory is removed.
 set -euo pipefail
@@ -103,7 +103,7 @@ mkdir "$target"
 while IFS= read -r file; do
     [[ -f "$file" ]] || continue
     case "$file" in
-        new-server.sh | tests/new-server-test.sh | STATUS.md | CHANGELOG.md | docs/nowy-serwer.md | profiles/*) continue ;;
+        new-server.sh | tests/new-server-test.sh | README.md | STATUS.md | CHANGELOG.md | profiles/*) continue ;;
     esac
     source="$file"
     if [[ "$trial" == false && -f "profiles/$system/$file" ]]; then
@@ -125,6 +125,47 @@ Format: wersje SemVer, od najnowszej. Do pierwszego wydania publicznego obowiazu
 ## Niewydane
 
 - Wygenerowany z mcp-server-template dla systemu \`$system\`.
+EOF
+
+developer_guide="https://github.com/aiwcorpo/mcp-docs/blob/main/docs/developer"
+manifest_line=""
+trial_note=""
+if [[ "$trial" == false ]]; then
+    manifest_line=" and mcp-app/target/mcp-manifest.json (the file CI registers with the gateway)"
+else
+    trial_note="
+
+This is a trial server: it runs in the \`dev\` profile only and writes no manifest."
+fi
+cat > "$target/README.md" <<EOF
+# mcp-$system
+
+MCP server for $system in the aiwcorpo MCP platform, generated from \`mcp-server-template\`. It runs only behind the platform
+gateway: it accepts traffic over mTLS with the gateway's internal JWT, answers 401 without it, and calls $system with the
+credential the gateway attaches to each request.$trial_note
+
+## Build
+
+JDK 25 is required; no container runtime and no running $system are needed, the tests use a stub backend.
+
+\`\`\`bash
+export JAVA_HOME="\$(/usr/libexec/java_home -v 25)"   # macOS; on Linux the JDK 25 directory
+./mvnw verify        # jar: mcp-app/target/mcp-$system.jar$manifest_line
+make ci              # ci/run.sh verify, the entry point shared by the GitLab, Jenkins and GitHub wrappers
+docker build -t mcp-$system:dev .    # after verify
+\`\`\`
+
+## Developing
+
+The tools in this repository are placeholders: replace the sample record domain, the adapter and the tools with the real ones.
+How to do it is in the developer guide of \`mcp-docs\`:
+
+- [A new server]($developer_guide/new-server.md): modules, what to complete, the patterns the server carries.
+- [Writing tools]($developer_guide/tools.md): annotations, risk, resources, search, results and errors.
+
+## License
+
+Apache-2.0, see \`LICENSE\`.
 EOF
 
 # Files only the system's profile has (extra tests of its own behavior).
@@ -172,5 +213,5 @@ Next:
   cd $target && git init
   ./mvnw verify          # JDK 25; builds and runs the tests against TestGateway and a stub backend
   make ci                # the same through ci/run.sh, the single entry point of the GitLab, Jenkins and GitHub wrappers
-Then replace the sample record domain with the real one (docs/jak-napisac-narzedzie.md).
+Then replace the sample record domain with the real one (developer guide: https://github.com/aiwcorpo/mcp-docs/blob/main/docs/developer/new-server.md).
 EOF

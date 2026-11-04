@@ -43,7 +43,7 @@ check "relative target used twice is refused" bash -c "cd '$work' && ! '$templat
 check "real system: TRIAL_SYSTEM false" grep -q 'TRIAL_SYSTEM = false' \
     "$work/relative-jira/mcp-app/src/test/java/pl/aiwcorpo/mcp/jira/app/ServerTestSupport.java"
 check "no template-only files" test ! -e "$work/relative-jira/new-server.sh" -a ! -e "$work/relative-jira/STATUS.md" \
-    -a ! -e "$work/relative-jira/tests/new-server-test.sh" -a ! -e "$work/relative-jira/docs/nowy-serwer.md"
+    -a ! -e "$work/relative-jira/tests/new-server-test.sh"
 
 for ci_file in ci/run.sh Makefile .gitlab-ci.yml Jenkinsfile .github/workflows/ci.yml .ci/settings.xml .ci/settings-anonymous.xml; do
     check "generated server has $ci_file" test -s "$work/relative-jira/$ci_file"
@@ -53,6 +53,10 @@ check "ci/run.sh refuses an unknown step" bash -c "cd '$work/relative-jira' && c
 for release_file in LICENSE NOTICE SECURITY.md CONTRIBUTING.md CHANGELOG.md .github/workflows/release.yml; do
     check "generated server has $release_file" test -s "$work/relative-jira/$release_file"
 done
+check "generated README is its own, not the template's" bash -c "! cmp -s '$template/README.md' '$work/relative-jira/README.md' && grep -q '^# mcp-jira\$' '$work/relative-jira/README.md' && ! grep -qi 'new-server.sh\\|Make a new server\\|mcp-example' '$work/relative-jira/README.md'"
+check "generated README names the jar and the manifest" bash -c "grep -q 'mcp-app/target/mcp-jira.jar' '$work/relative-jira/README.md' && grep -q 'mcp-manifest.json' '$work/relative-jira/README.md'"
+check "generated README links the developer guide of mcp-docs" bash -c "grep -q 'mcp-docs/blob/main/docs/developer/new-server.md' '$work/relative-jira/README.md' && grep -q 'mcp-docs/blob/main/docs/developer/tools.md' '$work/relative-jira/README.md'"
+check "generated server has no docs directory of the template" test ! -e "$work/relative-jira/docs"
 check "generated CHANGELOG is its own" bash -c "grep -q '\`jira\`' '$work/relative-jira/CHANGELOG.md' && ! grep -qi 'sonda wersji' '$work/relative-jira/CHANGELOG.md'"
 check "every action in the workflows is pinned to a commit SHA" bash -c "! grep -hE '^\s*-?\s*uses:' '$work'/relative-jira/.github/workflows/*.yml | grep -vE 'uses: [^@ ]+@[0-9a-f]{40}\s*\$'"
 check "every image of the CI is pinned to a digest" bash -c "! grep -hE 'image:? .?(maven|docker):' '$work'/relative-jira/.github/workflows/*.yml '$work'/relative-jira/.gitlab-ci.yml '$work'/relative-jira/Jenkinsfile | grep -v '@sha256:'"
@@ -74,6 +78,7 @@ check "trial system keeps the template's Jira model" grep -q 'Jira::Issue' \
     "$work/demo/mcp-core/src/main/java/pl/aiwcorpo/mcp/demo/core/domain/DemoResourceModel.java"
 check "trial system: TRIAL_SYSTEM true" grep -q 'TRIAL_SYSTEM = true' \
     "$work/demo/mcp-app/src/test/java/pl/aiwcorpo/mcp/demo/app/ServerTestSupport.java"
+check "trial README says dev profile only and promises no manifest" bash -c "grep -q 'dev. profile only' '$work/demo/README.md' && ! grep -q 'mcp-manifest.json\$' '$work/demo/README.md' && grep -q '^# mcp-demo\$' '$work/demo/README.md'"
 check "no placeholder left" bash -c "! grep -rIil example '$work/demo'"
 
 check "template unchanged" test "$before" == "$(git -C "$template" status --porcelain --untracked-files=all)"

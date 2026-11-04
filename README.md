@@ -2,7 +2,7 @@
 
 Template for MCP servers of the aiwcorpo MCP platform, and a working server for the placeholder system `example`. The
 repository is a tool for people who write servers: `new-server.sh <system>` turns it into a new server such as `mcp-jira`.
-This README is copied into every generated server, so rewrite it for the new system (step 8 below).
+The generator writes a short README of its own for every new server; this one stays in the template.
 
 The template is built on `mcp-platform-starter` 3.0.0-beta-14 (Java 25, Spring Boot 4.1.0, Spring AI 2.0.0, `mcp-contracts`
 6.3.2). A server made from it runs only behind the platform gateway: it accepts traffic over mTLS with the gateway's internal
@@ -37,8 +37,8 @@ read is [A new server](https://github.com/aiwcorpo/mcp-docs/blob/main/docs/devel
 3. Check what the script did. It renames the placeholder in contents and paths (`pl.aiwcorpo.mcp.example` to
    `pl.aiwcorpo.mcp.jira`, `mcp-example` to `mcp-jira`, `MCP_EXAMPLE_URL` to `MCP_JIRA_URL`, `ExampleTool` to `JiraTool`, and so
    on), copies only files tracked by git, and fails if the word `example` is left anywhere in the result.
-   Not copied: `new-server.sh`, its test, `profiles/`, `docs/nowy-serwer.md`, `STATUS.md` and the template's `CHANGELOG.md` (the
-   new server gets its own). `LICENSE`, `NOTICE`, `SECURITY.md`, `CONTRIBUTING.md` and the release workflow are copied.
+   Not copied: `new-server.sh`, its test, this README, `profiles/`, `STATUS.md` and the template's `CHANGELOG.md` (the
+   new server gets its own `CHANGELOG.md` and a short `README.md` with the build commands and a link to the developer guide). `LICENSE`, `NOTICE`, `SECURITY.md`, `CONTRIBUTING.md` and the release workflow are copied.
 4. Profiles. The template has the shape of Jira (`Jira::Issue` in `Jira::Project`). For the other systems the script replaces
    four files with the ones in `profiles/<system>/`, and sets `accepted-credential-types` for the system (Jira and Confluence
    `user-secret`, GitLab `user-oauth`, service desk `service-account`, OpenSearch `token-exchange`).
@@ -68,8 +68,8 @@ read is [A new server](https://github.com/aiwcorpo/mcp-docs/blob/main/docs/devel
    a missing group gives `access_denied`, plus `credential_required` (no credential, and 401 from the system) and
    `invalid_argument`. `GatewayOnlyAccessTest` stays. Identifiers used in tests must match the resource patterns of the
    contracts, which is why `SampleScope` differs per system.
-8. Finish the documentation and the deployment. Rewrite this README for the system (tools with risk, action, group
-   `mcp-<system>-read|write|destructive` and credential type), fill `docs/api/tools-catalog.md`, write your own `STATUS.md`,
+8. Finish the documentation and the deployment. Extend the generated README with the tools of the system (title, risk, action,
+   group `mcp-<system>-read|write|destructive` and credential type), write your own `STATUS.md`,
    and set the deployment variables from `deploy/systemd/mcp-<system>.env.template`. For `mcp-platform-dev` build the image
    with `docker build -t mcp-<system>:dev .`; the Dockerfile cannot use Alpine because `cedar-java` needs glibc.
 
@@ -108,7 +108,7 @@ Tests need no Docker and no platform environment. `TestGateway` from `mcp-platfo
 and `StubBackend` imitates the API of the system. `ci/run.sh generator` runs the generator test in CI.
 
 The starter version is the property `mcp-platform.version` in `pom.xml`; the BOM pins the contracts. `new-server.sh` reads the
-version from there. Platform artifacts come from the GitHub Packages registry of `aiwcorpo` or from `~/.m2` (see the README of
+version from there. Platform artifacts come from Maven Central or from `~/.m2` (see the README of
 `mcp-starter-lib`). Linux and macOS with bash 3.2 or newer; Windows only through WSL2.
 
 A normal build also writes `mcp-app/target/mcp-manifest.json` for servers of a real system (`manifest.export.skip=false`; the
@@ -164,16 +164,14 @@ described in `mcp-docs`; it works only for the five systems of the contracts.
 ## Install
 
 A generated server is one jar or one image. For a VM with systemd use `deploy/scripts/install.sh` and
-`deploy/systemd/mcp-example.env.template`; `docs/operations/deployment-vm-systemd.md` has the steps. For a container run
+`deploy/systemd/mcp-example.env.template`; the [VM installation guide](https://github.com/aiwcorpo/mcp-docs/blob/main/docs/operator/install-vm.md) in `mcp-docs` has the steps. For a container run
 `docker build` after `./mvnw verify` (image `eclipse-temurin:25-jre`, user `mcp`, port 8443, mTLS). Operating notes are in `mcp-docs`.
 
-## Documentation in this repository
+## Documentation
 
-- `docs/nowy-serwer.md`: long form of the generator notes (template only).
-- `docs/jak-napisac-narzedzie.md`: how to add a tool.
-- `docs/architecture/overview.md`, `docs/security/SECURITY.md`, `docs/api/tools-catalog.md`, `docs/operations/deployment-vm-systemd.md`.
+The guides for developers, operators and administrators are in [`mcp-docs`](https://github.com/aiwcorpo/mcp-docs): [A new server](https://github.com/aiwcorpo/mcp-docs/blob/main/docs/developer/new-server.md) and [Writing tools](https://github.com/aiwcorpo/mcp-docs/blob/main/docs/developer/tools.md). Deployment files: `deploy/`, `Dockerfile`.
 
-These pages are still in Polish. Vulnerability reports: `SECURITY.md`. Contributions: `CONTRIBUTING.md`. Changes: `CHANGELOG.md`.
+Vulnerability reports: `SECURITY.md`. Contributions: `CONTRIBUTING.md`. Changes: `CHANGELOG.md`.
 
 ## License
 

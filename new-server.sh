@@ -15,7 +15,7 @@
 # the system goes into the configuration. Template-only files (this
 # script, its test, README.md, STATUS.md, CHANGELOG.md, profiles/) are not copied; the generated server gets a
 # CHANGELOG.md and a short README.md of its own. LICENSE, NOTICE, SECURITY.md, CONTRIBUTING.md and the release workflow are copied. The CI files (ci/run.sh, Makefile,
-# .gitlab-ci.yml, Jenkinsfile, .github/workflows/ci.yml, .ci/) are copied like any other file. Afterwards no
+# .gitlab-ci.yml, Jenkinsfile, .github/workflows/ci.yml) are copied like any other file. Afterwards no
 # "example" may remain; on any failure the target directory is removed.
 set -euo pipefail
 

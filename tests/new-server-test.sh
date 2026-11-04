@@ -45,9 +45,11 @@ check "real system: TRIAL_SYSTEM false" grep -q 'TRIAL_SYSTEM = false' \
 check "no template-only files" test ! -e "$work/relative-jira/new-server.sh" -a ! -e "$work/relative-jira/STATUS.md" \
     -a ! -e "$work/relative-jira/tests/new-server-test.sh"
 
-for ci_file in ci/run.sh Makefile .gitlab-ci.yml Jenkinsfile .github/workflows/ci.yml .ci/settings.xml .ci/settings-anonymous.xml; do
+for ci_file in ci/run.sh Makefile .gitlab-ci.yml Jenkinsfile .github/workflows/ci.yml; do
     check "generated server has $ci_file" test -s "$work/relative-jira/$ci_file"
 done
+check "generated server has no registry settings" bash -c "test ! -e '$work/relative-jira/.ci' && ! grep -rIl 'MCP_MAVEN_REPOSITORY\\|maven.pkg.github.com\\|packages: read' '$work/relative-jira' --exclude-dir=target"
+check "pull request job: contents read only, no env" bash -c "awk '/verify-pull-request:/{f=1} /verify-main:/{f=0} f' '$work/relative-jira/.github/workflows/ci.yml' | grep -q 'contents: read' && ! awk '/verify-pull-request:/{f=1} /verify-main:/{f=0} f' '$work/relative-jira/.github/workflows/ci.yml' | grep -q 'env:\\|secrets\\.'"
 check "ci/run.sh is executable and names the generated image" bash -c "test -x '$work/relative-jira/ci/run.sh' && grep -q 'mcp-server-jira:' '$work/relative-jira/ci/run.sh' && grep -q 'mcp-jira.jar' '$work/relative-jira/ci/run.sh'"
 check "ci/run.sh refuses an unknown step" bash -c "cd '$work/relative-jira' && ci/run.sh bogus >/dev/null 2>&1; test \$? -eq 2"
 for release_file in LICENSE NOTICE SECURITY.md CONTRIBUTING.md CHANGELOG.md .github/workflows/release.yml; do

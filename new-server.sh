@@ -50,7 +50,14 @@ case "$target/" in
 esac
 
 contract_systems() {
-    local repo="${MAVEN_REPO:-$HOME/.m2/repository}" platform contracts jar
+    local repo="${MAVEN_REPO:-}" platform contracts jar
+    # Maven reads user.home from the passwd entry, which is not $HOME in CI containers, and settings.xml may move the repo.
+    if [[ -z "$repo" ]]; then
+        repo="$("$template/mvnw" -q -B -N -f "$template/pom.xml" \
+            org.apache.maven.plugins:maven-help-plugin:3.5.1:evaluate \
+            -Dexpression=settings.localRepository -DforceStdout 2>/dev/null)" || repo=""
+        repo="${repo:-$HOME/.m2/repository}"
+    fi
     platform="$(sed -n 's|.*<mcp-platform.version>\(.*\)</mcp-platform.version>.*|\1|p' "$template/pom.xml")"
     contracts="$(sed -n 's|.*<mcp-contracts.version>\(.*\)</mcp-contracts.version>.*|\1|p' \
         "$repo/pl/aiwcorpo/mcp/mcp-platform-bom/$platform/mcp-platform-bom-$platform.pom" 2>/dev/null)"

@@ -204,7 +204,7 @@ final class StubBackend {
 
     /**
      * {@code ?ids=a,b}: the records among them that the stub keeps in one place (a batch for the resolver). Otherwise
-     * {@code ?query=}: the query the server built, read the way Jira and Confluence read the part that matters here: the
+     * {@code ?query=}: the query the server built, read the way a query language of the system would, for the part that matters here: the
      * requested project or space, the narrowing of a link ({@code project in ("ABC")}) and the text of the title.
      */
     private void search(HttpExchange exchange) throws IOException {

@@ -10,7 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * The policy (C7) on the resource of {@code get_record}, with the example bundle of the contracts: a record is judged by
+ * The policy (C7) on the resource of {@code get_record}, with the policies of this server: a record is judged by
  * the project the backend says it is in, whatever the argument looks like, and every refusal looks like a missing record.
  */
 class ResourcePolicyTest extends ServerTestSupport {
@@ -48,21 +48,14 @@ class ResourcePolicyTest extends ServerTestSupport {
     }
 
     @Test
-    void aRecordWhoseProjectClassificationIsUnknownIsNotServedWhereThePolicyRequiresIt() {
+    void aRecordWhoseProjectClassificationIsUnknownIsNotServed() {
         try (McpSyncClient client = clientWithCredential(PAT)) {
             McpSchema.CallToolResult result = call(client, "get_record", Map.of("recordId", StubBackend.UNCLASSIFIED));
 
-            if (SampleScope.UNCLASSIFIED_OUTSIDE_SCOPE) {
-                assertThat(result.isError()).as("no grant on this container: the same answer as for a missing record").isTrue();
-                assertThat(text(result)).contains(NOT_FOUND_OR_DENIED);
-            } else if (SampleScope.UNKNOWN_CLASSIFICATION_REFUSED) {
-                // The attribute is required: a resource without it cannot be built, which the contract makes an
-                // internal_error (not a denial); nothing of the record reaches the client.
-                assertThat(result.isError()).isTrue();
-                assertThat(text(result)).contains("\"error\":\"internal_error\"").doesNotContain("Unclassified");
-            } else {
-                assertThat(result.isError()).isFalse();
-            }
+            // The attribute is required: a resource without it cannot be built, which the contract makes an
+            // internal_error (not a denial); nothing of the record reaches the client.
+            assertThat(result.isError()).isTrue();
+            assertThat(text(result)).contains("\"error\":\"internal_error\"").doesNotContain("Unclassified");
         }
     }
 
@@ -82,11 +75,8 @@ class ResourcePolicyTest extends ServerTestSupport {
         try (McpSyncClient client = clientWithToken(user -> user.username("jkowalski").groups(List.of(READ_GROUP)), PAT)) {
             McpSchema.CallToolResult result = call(client, "get_record", Map.of("recordId", StubBackend.OPEN_1));
 
-            // Where the system ignores the user's rights (service account, token with FLS only) the scopes of the bundle decide.
-            assertThat(result.isError()).isEqualTo(SampleScope.READ_REQUIRES_SCOPE);
-            if (SampleScope.READ_REQUIRES_SCOPE) {
-                assertThat(text(result)).contains(NOT_FOUND_OR_DENIED);
-            }
+            // The system applies the user's rights to a read, so the read group is all the policy asks for.
+            assertThat(result.isError()).isFalse();
         }
     }
 
@@ -96,9 +86,7 @@ class ResourcePolicyTest extends ServerTestSupport {
             McpSchema.CallToolResult result = call(client, "get_record", Map.of("recordId", StubBackend.FAILING));
 
             assertThat(result.isError()).isTrue();
-            if (!SampleScope.ONLY_GRANTED_PROJECTS) {
-                assertThat(text(result)).doesNotContain(NOT_FOUND_OR_DENIED);
-            }
+            assertThat(text(result)).doesNotContain(NOT_FOUND_OR_DENIED);
         }
     }
 }

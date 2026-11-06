@@ -6,7 +6,6 @@ import static org.mockito.Mockito.doThrow;
 import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.spec.McpSchema;
 import java.util.Map;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -23,7 +22,6 @@ class DegradedModeTest extends ServerTestSupport {
 
     @BeforeEach
     void degrade() {
-        Assumptions.assumeTrue(SampleScope.FULL_TOOL_SET);
         BACKEND.reset();
         doThrow(new BackendDegradedException()).when(gate).requireWritable();
     }

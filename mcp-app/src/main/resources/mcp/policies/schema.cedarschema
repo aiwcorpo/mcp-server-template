@@ -1,0 +1,25 @@
+// Cedar fragment of this server: one namespace, the server's own. The types of the base schema (User, ResourceScope,
+// RequestContext) are written without qualification, and every entity type has `scopes`. The entity types here are
+// exactly the types of resource-types.json, with the same attributes and parents.
+
+namespace Example {
+  entity Project {
+    key: String,
+    // The classification of the container: required, "" when the backend reports none. The platform normalizes it (trim,
+    // ASCII lower case) and generates the rule that refuses "restricted"; nothing in this directory repeats that rule.
+    category: String,
+    scopes: Set<ResourceScope>,
+  };
+  // `project` repeats the parent edge because Cedar cannot read an attribute of an ancestor through `in`.
+  entity Record in [Project] {
+    key: String,
+    project: Project,
+    scopes: Set<ResourceScope>,
+  };
+
+  action "read", "update", "delete", "admin" appliesTo {
+    principal: [User],
+    resource: [Project, Record],
+    context: RequestContext,
+  };
+}

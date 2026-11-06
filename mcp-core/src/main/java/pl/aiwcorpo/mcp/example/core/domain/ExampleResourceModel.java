@@ -1,38 +1,22 @@
 package pl.aiwcorpo.mcp.example.core.domain;
 
-import java.util.Collection;
-
 /**
- * How this server's records map to the resource types of the policy (C7). {@code new-server.sh} replaces this
- * file with the one of the generated system; the Jira variant is the template's own.
+ * Names of the resource types this server declares in {@code mcp/policies/resource-types.json}: the string in
+ * {@code @ResourceRef}, in the resolver and in the descriptions the policy reads. Ids and their patterns are not
+ * repeated here; the declaration is their only source.
  */
 public final class ExampleResourceModel {
 
     /** Type of the record itself: the argument of {@code get_record} and the id of a search hit. */
-    public static final String RECORD_TYPE = "Jira::Issue";
+    public static final String RECORD_TYPE = "Example::Record";
 
-    /** Type of the container, the one a search is narrowed to ({@code QueryScope}). */
-    public static final String PARENT_TYPE = "Jira::Project";
+    /** Type of the container, the one a search is narrowed to ({@code QueryScope}) and a scope is granted on. */
+    public static final String PARENT_TYPE = "Example::Project";
 
-    /**
-     * Contract pattern (common.schema.json) and bound of the record id argument; the starter also checks every
-     * {@code @ResourceRef} value against the pattern of its type before the resolver sees it.
-     */
-    public static final String RECORD_ID_CONTRACT = "JiraIssueKey";
+    /** Bounds of the id arguments: the schema of a tool needs a length, the pattern comes from the declaration. */
     public static final int RECORD_ID_MAX_LENGTH = 16;
-
-    /** The same for the argument that names the container in a search. */
-    public static final String PARENT_ID_CONTRACT = "JiraProjectKey";
     public static final int PARENT_ID_MAX_LENGTH = 10;
 
     private ExampleResourceModel() {
-    }
-
-    /**
-     * Whether a search in {@code parentId} stays inside the ids of a scope ({@code scopeIds}); a flat container
-     * type is inside when the id is one of them.
-     */
-    public static boolean within(Collection<String> scopeIds, String parentId) {
-        return scopeIds.contains(parentId);
     }
 }

@@ -6,17 +6,10 @@ import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTranspor
 import io.modelcontextprotocol.spec.McpSchema;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.time.Duration;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.stream.Stream;
-import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.ActiveProfiles;
@@ -24,7 +17,6 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import pl.aiwcorpo.mcp.platform.security.BackendCredential;
 import pl.aiwcorpo.mcp.platform.test.TestGateway;
-import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The whole server over HTTP, with TestGateway in place of the gateway and {@link StubBackend} in place of
@@ -36,21 +28,18 @@ abstract class ServerTestSupport {
 
     static final String SYSTEM = "example";
 
-    /**
-     * True only for a system outside the contracts' SystemId (the template's placeholder, a server generated
-     * with new-server.sh --trial). new-server.sh sets it to false for a real system, and then the system must be
-     * on the list (checked in {@link #contractSystemIsKnown()}).
-     */
-    static final boolean TRIAL_SYSTEM = true;
-
     static final String SERVER_ID = "mcp-" + SYSTEM;
     static final String READ_GROUP = SERVER_ID + "-read";
     static final String WRITE_GROUP = SERVER_ID + "-write";
     static final String ENDPOINT = "/mcp";
-    static final Set<String> CONTRACT_SYSTEMS = contractSystems();
 
     static final TestGateway GATEWAY = TestGateway.start(SERVER_ID);
     static final StubBackend BACKEND = StubBackend.start();
+
+    static {
+        // Before the server starts: its first policy data already carries the mapping.
+        GATEWAY.policyData().scopeMapping(SampleScope.SCOPE_MAPPING);
+    }
 
     @DynamicPropertySource
     static void environment(DynamicPropertyRegistry registry) {
@@ -92,13 +81,12 @@ abstract class ServerTestSupport {
 
     /** The caller of most tests: a member of the read group of the system. */
     static void reader(TestGateway.Token user) {
-        user.username("jkowalski").groups(Stream.concat(Stream.of(READ_GROUP), SampleScope.EXTRA_GROUPS.stream()).toList());
+        user.username("jkowalski").groups(List.of(READ_GROUP));
     }
 
     /** A caller who may also change records: the read group and the write group of the system. */
     static void writer(TestGateway.Token user) {
-        user.username("jkowalski").groups(Stream.of(Stream.of(READ_GROUP, WRITE_GROUP), SampleScope.EXTRA_GROUPS.stream(), SampleScope.WRITE_GRANTS.stream())
-                .flatMap(group -> group).toList());
+        user.username("jkowalski").groups(List.of(READ_GROUP, WRITE_GROUP, SampleScope.OPEN_PROJECT_GROUP));
     }
 
     /** As {@link #clientWithCredential}, with the caller's token shaped by {@code user} (claims of a link call). */
@@ -118,11 +106,6 @@ abstract class ServerTestSupport {
         return client;
     }
 
-    /**
-     * The starter sends only C10 errors valid against {@code tool-error.schema.json}, whose {@code system} is the
-     * closed {@code SystemId} list of the contracts. A trial system (outside the list) gets {@code internal_error}
-     * instead; a real system must get the full error with the portal link, never {@code internal_error}.
-     */
     /** A refusal by the schema or by the tool: the model sent something the tool does not accept. */
     static void assertInvalidArgument(McpSchema.CallToolResult result) {
         assertThat(result.isError()).isTrue();
@@ -131,40 +114,8 @@ abstract class ServerTestSupport {
 
     static void assertCredentialRequired(McpSchema.CallToolResult result) {
         assertThat(result.isError()).isTrue();
-        if (TRIAL_SYSTEM) {
-            assertThat(CONTRACT_SYSTEMS).as("a trial system is outside SystemId").doesNotContain(SYSTEM);
-            assertThat(text(result)).contains("\"error\":\"internal_error\"");
-        } else {
-            assertThat(text(result)).contains("\"error\":\"credential_required\"", "\"system\":\"" + SYSTEM + "\"",
-                    "\"connectUrl\":\"http://localhost:18090/connections?system=" + SYSTEM + "\"");
-        }
-    }
-
-    /**
-     * The error text for a failure of the system while the resource is resolved. For a service account (Service Desk)
-     * the platform answers {@code not_found_or_denied} to every such failure: a fault of the system must not tell
-     * whether the ticket exists.
-     */
-    static String resolverFault(String code) {
-        return "\"error\":\"" + (SampleScope.ONLY_GRANTED_PROJECTS ? "not_found_or_denied" : code) + "\"";
-    }
-
-    /** A real server's system is one of the contracts'; a trial one is not. */
-    @Test
-    void contractSystemIsKnown() {
-        assertThat(CONTRACT_SYSTEMS.contains(SYSTEM)).isEqualTo(!TRIAL_SYSTEM);
-    }
-
-    private static Set<String> contractSystems() {
-        try (InputStream schema = ServerTestSupport.class.getClassLoader()
-                .getResourceAsStream("mcp-contracts/schemas/common.schema.json")) {
-            Set<String> systems = new HashSet<>();
-            JsonMapper.builder().build().readTree(schema).at("/$defs/SystemId/enum")
-                    .forEach(system -> systems.add(system.asString()));
-            return Set.copyOf(systems);
-        } catch (IOException ex) {
-            throw new UncheckedIOException(ex);
-        }
+        assertThat(text(result)).contains("\"error\":\"credential_required\"", "\"system\":\"" + SYSTEM + "\"",
+                "\"connectUrl\":\"http://localhost:18090/connections?system=" + SYSTEM + "\"");
     }
 
     static McpSchema.CallToolResult call(McpSyncClient client, String tool, Map<String, Object> arguments) {

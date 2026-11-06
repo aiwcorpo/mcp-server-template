@@ -65,15 +65,12 @@ class SearchRecordsToolTest extends ServerTestSupport {
 
             assertThat(open).doesNotContain(StubBackend.OTHER_7);
             assertThat(other).doesNotContain(StubBackend.OPEN_1);
-            if (!SampleScope.ONLY_GRANTED_PROJECTS) {
-                assertThat(other).contains(StubBackend.OTHER_7);
-            }
+            assertThat(other).contains(StubBackend.OTHER_7);
         }
     }
 
     @Test
     void theRequestedProjectTravelsInsideTheQueryWhereTheSystemHasAQueryLanguage() {
-        org.junit.jupiter.api.Assumptions.assumeTrue(SampleScope.QUERY_CARRIES_PROJECT);
         try (McpSyncClient client = clientWithCredential(PAT)) {
             call(client, "search_records", search(SampleScope.OPEN_PROJECT, "report"));
 
@@ -92,18 +89,6 @@ class SearchRecordsToolTest extends ServerTestSupport {
                     .as("the quote is escaped, so the value cannot close the literal")
                     .contains("\\\" OR project")
                     .doesNotContain("x\" OR project");
-        }
-    }
-
-    @Test
-    void aContainerTheGroupsDoNotGrantIsNotSearchedWhereTheSystemIgnoresTheUsersRights() {
-        org.junit.jupiter.api.Assumptions.assumeTrue(SampleScope.ONLY_GRANTED_PROJECTS);
-        try (McpSyncClient client = clientWithCredential(PAT)) {
-            McpSchema.CallToolResult result = call(client, "search_records", search(SampleScope.OTHER_PROJECT, "report"));
-
-            assertThat(result.isError()).isFalse();
-            assertThat(text(result)).contains("\"hits\":[]");
-            assertThat(BACKEND.searches()).isEmpty();
         }
     }
 

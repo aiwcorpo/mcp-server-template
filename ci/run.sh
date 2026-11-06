@@ -5,10 +5,10 @@
 #
 #   ci/run.sh                 verify (default)
 #   ci/run.sh verify          hygiene checks, then mvnw verify (unit tests and the tests of the whole server against
-#                             TestGateway and a stub backend); a build that ran no test fails. For a real system the
+#                             TestGateway and a stub backend); a build that ran no test fails. The
 #                             registration manifest (mcp-app/target/mcp-manifest.json) must exist afterwards
 #   ci/run.sh hygiene         only the text checks of the sources (non-ASCII quotes and spaces, tool traces)
-#   ci/run.sh generator      template only: tests/new-server-test.sh --build (every generated server builds and passes)
+#   ci/run.sh generator      template only: tests/new-server-test.sh --build (a generated server builds and passes)
 #   ci/run.sh image           docker build of the jar that verify made; main branch only, needs a Docker daemon
 #
 # CI_TEST_MODULES (default: mcp-application mcp-integration mcp-tools mcp-app) lists the modules that must have run tests, CI_APP_MIN_TESTS the
@@ -135,10 +135,9 @@ require_tests_ran() {
   done
 }
 
-# A real system builds its manifest in the package phase (new-server.sh turns that on); the template and trial servers
-# are outside the SystemId of the contracts and build none.
+# The manifest is built in the package phase; without it there is nothing to register at the gateway.
 require_manifest() {
-  if grep -q '<manifest.export.skip>false<' mcp-app/pom.xml && [[ ! -s mcp-app/target/mcp-manifest.json ]]; then
+  if [[ ! -s mcp-app/target/mcp-manifest.json ]]; then
     echo "ci/run.sh: mcp-app/target/mcp-manifest.json was not written" >&2
     exit 1
   fi

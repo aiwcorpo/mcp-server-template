@@ -31,20 +31,18 @@ aiwcorpo:
         jwks-uri: ${MCP_GATEWAY_JWKS_URI:}
       credential:
         connect-url: ${MCP_CONNECT_URL:}
-      # The signed policy bundle (C7), the same one the gateway evaluates. The server does not start without a first
-      # bundle, and state-dir keeps the last accepted revision across restarts so an older signed bundle is refused.
-      policy:
-        main:
-          url: ${MCP_POLICY_URL:}
-          key-id: ${MCP_POLICY_KEY_ID:}
-          public-key-file: ${MCP_POLICY_PUBLIC_KEY_FILE:}
-        state-dir: ${MCP_POLICY_STATE_DIR:}
+      # Scope mapping, allowed AI clients and emergency overrides of the administrator, served by the gateway over mTLS with
+      # this server's own certificate (CN mcp-example). The policies themselves are in this jar (mcp/policies/). The address
+      # is the gateway's internal TLS port; tls-name is needed only when its certificate does not carry the host of the url.
+      policy-data:
+        url: ${MCP_GATEWAY_POLICY_DATA_URL:}
+        tls-name: ${MCP_GATEWAY_TLS_NAME:}
       # Description of this server for the registry (GET /mcp-manifest, C6); the tool entries come from the code.
       manifest:
         version: '@project.version@'
         internal-url: ${MCP_INTERNAL_URL:}
         # The first type is the default of the system: context.credentialType of every Cedar request. It must be the
-        # type the gateway resolves for this system; new-server.sh sets the list per system. A request whose
+        # type the gateway resolves for this system (credential.type of the server in the gateway). A request whose
         # X-MCP-Credential-Type is outside the list is refused (internal_error).
         accepted-credential-types: ${MCP_ACCEPTED_CREDENTIAL_TYPES:user-secret}
       # Key of the paging cursors (Base64, at least 32 bytes). Every instance behind the gateway needs the same one;

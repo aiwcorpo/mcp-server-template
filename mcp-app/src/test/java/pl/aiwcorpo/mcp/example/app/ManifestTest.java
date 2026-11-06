@@ -23,13 +23,6 @@ import tools.jackson.databind.json.JsonMapper;
  */
 class ManifestTest extends ServerTestSupport {
 
-    @org.junit.jupiter.api.BeforeEach
-    void onlyForTheSystemsOfTheContracts() {
-        org.junit.jupiter.api.Assumptions.assumeFalse(TRIAL_SYSTEM,
-                "serverId of the manifest schema is the enum of the contracts: a trial server's manifest is rejected (a warning in dev)");
-    }
-
-
     private static final JsonMapper JSON = JsonMapper.builder().build();
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(5)).build();
 
@@ -107,6 +100,19 @@ class ManifestTest extends ServerTestSupport {
         assertThat(exported.get("resourceTypes")).isEqualTo(served.get("resourceTypes"));
         assertThat(exported.get("serverId")).isEqualTo(served.get("serverId"));
         assertThat(exported.has("environment")).isFalse();
+    }
+
+    @Test
+    void theManifestCarriesThePoliciesOfTheJarAndTheirHash() throws Exception {
+        JsonNode exported = JSON.readTree(ManifestExport.manifest());
+        JsonNode served = manifest();
+
+        assertThat(exported.at("/policies/namespace").asString()).isEqualTo("Example");
+        assertThat(exported.at("/policies/files").valueStream().map(file -> file.get("name").asString()))
+                .containsExactly("read.cedar", "update.cedar");
+        assertThat(exported.get("policiesHash").asString()).startsWith("sha256:");
+        assertThat(exported.get("policies")).as("the registered file and the running server say the same").isEqualTo(served.get("policies"));
+        assertThat(exported.get("policiesHash")).isEqualTo(served.get("policiesHash"));
     }
 
     @Test

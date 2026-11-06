@@ -37,22 +37,30 @@ class ProductionConfigurationTest {
     }
 
     @Test
-    void theBaseConfigurationNeedsThePolicyBundleAndTheManifestButNeverAllowsTestKeys() throws IOException {
-        PropertySource<?> base = new YamlPropertySourceLoader()
-                .load("application.yml", new ClassPathResource("application.yml")).getFirst();
+    void theBaseConfigurationNeedsThePolicyDataAndTheManifestButNeverAllowsTestKeys() throws IOException {
+        List<PropertySource<?>> documents = new YamlPropertySourceLoader()
+                .load("application.yml", new ClassPathResource("application.yml"));
+        PropertySource<?> base = documents.getFirst();
 
-        for (String key : List.of("url", "key-id", "public-key-file")) {
-            assertThat(base.containsProperty("aiwcorpo.mcp.platform.policy.main." + key)).as(key).isTrue();
-        }
-        assertThat(base.containsProperty("aiwcorpo.mcp.platform.policy.state-dir")).isTrue();
+        assertThat(base.containsProperty("aiwcorpo.mcp.platform.policy-data.url")).isTrue();
         assertThat(base.containsProperty("aiwcorpo.mcp.platform.manifest.version")).isTrue();
         assertThat(base.containsProperty("aiwcorpo.mcp.platform.manifest.internal-url")).isTrue();
         assertThat(base.containsProperty("aiwcorpo.mcp.platform.manifest.accepted-credential-types")).isTrue();
-        assertThat(new YamlPropertySourceLoader().load("application.yml", new ClassPathResource("application.yml")))
-                .allSatisfy(document -> {
-                    assertThat(document.containsProperty("aiwcorpo.mcp.platform.policy.allow-test-keys")).isFalse();
-                    assertThat(document.containsProperty("aiwcorpo.mcp.platform.internal-jwt.allow-test-keys")).isFalse();
-                });
+        assertThat(documents).allSatisfy(document ->
+                assertThat(document.containsProperty("aiwcorpo.mcp.platform.internal-jwt.allow-test-keys")).isFalse());
+    }
+
+    @Test
+    void noSettingOfTheRemovedPolicyBundlesIsLeftInAnyConfiguration() throws IOException {
+        for (String file : List.of("application.yml", "application-dev.yml")) {
+            List<PropertySource<?>> documents = new YamlPropertySourceLoader().load(file, new ClassPathResource(file));
+            assertThat(documents).allSatisfy(document -> {
+                Map<String, Object> source = (Map<String, Object>) document.getSource();
+                assertThat(source.keySet()).as(file).noneMatch(key -> key.startsWith("aiwcorpo.mcp.platform.policy."));
+                assertThat(source.values().stream().map(String::valueOf).toList()).as(file)
+                        .noneMatch(value -> value.contains("MCP_POLICY_"));
+            });
+        }
     }
 
     @Test
@@ -70,12 +78,12 @@ class ProductionConfigurationTest {
     }
 
     @Test
-    void testKeysAndThePolicyRepositoryOfTheDevStackAreConfiguredInDevOnly() throws IOException {
+    void testKeysAndTheLocalPolicyDataAreConfiguredInDevOnly() throws IOException {
         Map<String, Object> dev = (Map<String, Object>) new YamlPropertySourceLoader()
                 .load("application-dev.yml", new ClassPathResource("application-dev.yml")).getFirst().getSource();
 
-        assertThat(String.valueOf(dev.get("aiwcorpo.mcp.platform.policy.allow-test-keys"))).isEqualTo("true");
-        assertThat(String.valueOf(dev.get("aiwcorpo.mcp.platform.policy.main.url"))).contains("http://127.0.0.1:");
+        assertThat(String.valueOf(dev.get("aiwcorpo.mcp.platform.internal-jwt.allow-test-keys"))).isEqualTo("true");
+        assertThat(String.valueOf(dev.get("aiwcorpo.mcp.platform.policy-data.url"))).contains("http://127.0.0.1:");
     }
 
     @Test
@@ -85,7 +93,7 @@ class ProductionConfigurationTest {
         assertThatCode(() -> adapter("https://backend.internal", environment())).doesNotThrowAnyException();
 
         assertThatCode(() -> new ExampleBackendClient(
-                new ExampleBackendProperties("http://jira.internal:8080", null, null, null, null, true),
+                new ExampleBackendProperties("http://backend.internal:8080", null, null, null, null, true),
                 new DefaultListableBeanFactory().getBeanProvider(SslBundles.class), environment()))
                 .as("explicit opt-in for the dev environment's mocks").doesNotThrowAnyException();
 

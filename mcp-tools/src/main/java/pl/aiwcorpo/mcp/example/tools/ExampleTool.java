@@ -34,10 +34,10 @@ import pl.aiwcorpo.mcp.platform.resource.ResourceRef;
 @Service
 public class ExampleTool {
 
-    static final int SEARCH_TEXT_MAX_LENGTH = 200;
+    public static final int SEARCH_TEXT_MAX_LENGTH = 200;
     static final int TITLE_MAX_LENGTH = 255;
     /** Comment ids of the backend are numbers; the pattern keeps anything else out of the path of the request. */
-    static final String COMMENT_ID_PATTERN = "^[0-9]{1,12}$";
+    public static final String COMMENT_ID_PATTERN = "^[0-9]{1,12}$";
     static final int COMMENT_ID_MAX_LENGTH = 12;
     /**
      * Backend pages one call may read to fill a page that the filter of the use case thinned out: a short page with a
@@ -73,7 +73,7 @@ public class ExampleTool {
     public ExampleRecordView getRecord(
             @ToolParam(description = "Record id as the system issues it")
             @ArgumentLimits(maxLength = ExampleResourceModel.RECORD_ID_MAX_LENGTH,
-                    contractPattern = ExampleResourceModel.RECORD_ID_CONTRACT)
+                    resourceType = ExampleResourceModel.RECORD_TYPE)
             @ResourceRef(type = ExampleResourceModel.RECORD_TYPE) String recordId) {
         // The record the resolver fetched for the policy: no second call to the backend, and the answer judged is
         // the answer returned.
@@ -97,7 +97,7 @@ public class ExampleTool {
     public ExampleSearchView searchRecords(
             @ToolParam(description = "Project to search in, as the system names it")
             @ArgumentLimits(maxLength = ExampleResourceModel.PARENT_ID_MAX_LENGTH,
-                    contractPattern = ExampleResourceModel.PARENT_ID_CONTRACT) String project,
+                    resourceType = ExampleResourceModel.PARENT_TYPE) String project,
             @ToolParam(description = "Text to look for in the title, at most 200 characters")
             @ArgumentLimits(minLength = 1, maxLength = SEARCH_TEXT_MAX_LENGTH) String text) {
         if (text == null || text.isBlank() || text.length() > SEARCH_TEXT_MAX_LENGTH) {
@@ -123,7 +123,7 @@ public class ExampleTool {
     public PagedResult<ExampleCommentItem> listComments(
             @ToolParam(description = "Record id as the system issues it")
             @ArgumentLimits(maxLength = ExampleResourceModel.RECORD_ID_MAX_LENGTH,
-                    contractPattern = ExampleResourceModel.RECORD_ID_CONTRACT)
+                    resourceType = ExampleResourceModel.RECORD_TYPE)
             @ResourceRef(type = ExampleResourceModel.RECORD_TYPE) String recordId,
             @ToolParam(description = "nextCursor of the previous page, unchanged", required = false)
             @ArgumentLimits(maxLength = CursorCodec.MAX_CURSOR_LENGTH, pattern = CursorCodec.ARGUMENT_PATTERN)
@@ -155,7 +155,7 @@ public class ExampleTool {
     public ExampleCommentItem getComment(
             @ToolParam(description = "Record id as the system issues it")
             @ArgumentLimits(maxLength = ExampleResourceModel.RECORD_ID_MAX_LENGTH,
-                    contractPattern = ExampleResourceModel.RECORD_ID_CONTRACT)
+                    resourceType = ExampleResourceModel.RECORD_TYPE)
             @ResourceRef(type = ExampleResourceModel.RECORD_TYPE) String recordId,
             @ToolParam(description = "Comment id from list_comments, digits only")
             @ArgumentLimits(minLength = 1, maxLength = COMMENT_ID_MAX_LENGTH, pattern = COMMENT_ID_PATTERN)
@@ -175,7 +175,7 @@ public class ExampleTool {
     public ExampleUpdateView updateRecord(
             @ToolParam(description = "Record id as the system issues it")
             @ArgumentLimits(maxLength = ExampleResourceModel.RECORD_ID_MAX_LENGTH,
-                    contractPattern = ExampleResourceModel.RECORD_ID_CONTRACT)
+                    resourceType = ExampleResourceModel.RECORD_TYPE)
             @ResourceRef(type = ExampleResourceModel.RECORD_TYPE) String recordId,
             @ToolParam(description = "New title, one line, 1-255 characters")
             @ArgumentLimits(minLength = 1, maxLength = TITLE_MAX_LENGTH) String title) {

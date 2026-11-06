@@ -7,7 +7,6 @@ import io.modelcontextprotocol.spec.McpSchema;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -23,7 +22,6 @@ class CommentToolsTest extends ServerTestSupport {
 
     @BeforeEach
     void resetBackend() {
-        Assumptions.assumeTrue(SampleScope.FULL_TOOL_SET);
         BACKEND.reset();
     }
 

@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.spec.McpSchema;
+import java.util.List;
 import java.util.Map;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -16,7 +16,6 @@ class UpdateRecordToolTest extends ServerTestSupport {
 
     @BeforeEach
     void resetBackend() throws InterruptedException {
-        Assumptions.assumeTrue(SampleScope.FULL_TOOL_SET);
         BACKEND.reset();
         awaitProbe();
     }
@@ -64,6 +63,17 @@ class UpdateRecordToolTest extends ServerTestSupport {
 
             assertThat(result.isError()).isTrue();
             assertThat(text(result)).contains("\"error\":\"access_denied\"");
+        }
+        assertThat(BACKEND.updates()).isEmpty();
+    }
+
+    @Test
+    void aWriterWithoutTheScopeOfTheProjectLooksLikeAMissingRecordAndNothingIsWritten() {
+        try (McpSyncClient client = clientWithToken(user -> user.username("jkowalski").groups(List.of(READ_GROUP, WRITE_GROUP)), PAT)) {
+            String outside = text(call(client, "update_record", Map.of("recordId", StubBackend.OPEN_1, "title", "x")));
+            String missing = text(call(client, "update_record", Map.of("recordId", StubBackend.MISSING, "title", "x")));
+
+            assertThat(outside).contains("\"error\":\"not_found_or_denied\"").isEqualTo(missing);
         }
         assertThat(BACKEND.updates()).isEmpty();
     }

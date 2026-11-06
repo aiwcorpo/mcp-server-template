@@ -1,82 +1,118 @@
 # mcp-example: MCP server template
 
-Template for MCP servers of the aiwcorpo MCP platform, and a working server for the placeholder system `example`. The
-repository is a tool for people who write servers: `new-server.sh <system>` turns it into a new server such as `mcp-jira`.
-The generator writes a short README of its own for every new server; this one stays in the template.
+Template for MCP servers of the aiwcorpo MCP platform, and a working server for the placeholder system `example`. It is the reference
+for anyone who writes a new server: copy it, rename the system, write the resource types and the policies, and register the server at a
+running platform. Nothing in the platform lists systems or servers, so a new one needs no change anywhere else and no restart.
 
-The template is built on `mcp-platform-starter` 3.0.0 (Java 25, Spring Boot 4.1.0, Spring AI 2.0.0, `mcp-contracts`
-6.3.2). A server made from it runs only behind the platform gateway: it accepts traffic over mTLS with the gateway's internal
-JWT and answers 401 without it, and it calls the backend system with the credential the gateway attaches to each request. The
-server does not log users in, decide who may call a tool or confirm actions; the gateway does. The server owns its tools, the
-adapter to the system, error codes, and the description of its resources for the policy: the starter evaluates the same signed
-Cedar bundle as the gateway and refuses resources marked `restricted`.
+The template is built on `mcp-platform-starter` 4.0.0 (Java 25, Spring Boot 4.1.0, Spring AI 2.0.0, `mcp-contracts` 7.0.0). A server made
+from it runs only behind the platform gateway: it accepts traffic over mTLS with the gateway's internal JWT and answers 401 without it,
+and it calls the backend system with the credential the gateway attaches to each request. The server does not log users in, decide who
+may call a tool or confirm actions; the gateway does. The server owns its tools, the adapter to the system, error codes, and the
+policies of its own resources: they are in its jar (`mcp/policies/`), and the starter evaluates them with the scope mapping the gateway
+serves. The platform adds the rule that refuses `restricted` data and the one for the service account; the server does not write them.
 
 Platform documentation lives in [aiwcorpo/mcp-docs](https://github.com/aiwcorpo/mcp-docs). For server authors the page to
 read is [A new server](https://github.com/aiwcorpo/mcp-docs/blob/main/docs/developer/new-server.md)
 (`docs/developer/new-server.md`), with the tool rules next to it in `docs/developer/tools.md`.
 
-## Make a new server
+## Create a new MCP server
 
-1. Build the template once (`./mvnw verify`, JDK 25). The generator reads the list of valid systems from the contracts jar in
-   `~/.m2`.
-2. Generate the server. `<system>` must be one of the `SystemId` values of the contracts: `jira`, `confluence`, `gitlab`,
-   `servicedesk`, `opensearch`. Only such servers start outside the `dev` profile, and only for them the dev stack has
-   certificates and Redis users.
+Example: a server for the system `notes`.
 
-   ```bash
-   ./new-server.sh jira                          # creates ../mcp-server-jira
-   ./new-server.sh jira /path/to/mcp-server-jira
-   ./new-server.sh --trial demo ../mcp-server-demo   # throwaway server, dev profile only
-   cd ../mcp-server-jira && git init
-   ./mvnw verify                                 # passes without manual changes
-   ```
+1. **Copy.** Build the template once (`./mvnw verify`, JDK 25; the generator reads the pattern of a system id from the contracts jar in
+   `~/.m2`), then:
 
-   A `--trial` server may have any lower case name. It builds and passes its tests, but its manifest is invalid, so eight
-   `ManifestTest` cases are skipped and `credential_required` shows up as `internal_error`. The target path must not exist
-   and must be outside the template. If generation fails, the target directory is removed.
-3. Check what the script did. It renames the placeholder in contents and paths (`pl.aiwcorpo.mcp.example` to
-   `pl.aiwcorpo.mcp.jira`, `mcp-example` to `mcp-jira`, `MCP_EXAMPLE_URL` to `MCP_JIRA_URL`, `ExampleTool` to `JiraTool`, and so
-   on), copies only files tracked by git, and fails if the word `example` is left anywhere in the result.
-   Not copied: `new-server.sh`, its test, this README, `profiles/`, `STATUS.md` and the template's `CHANGELOG.md` (the
-   new server gets its own `CHANGELOG.md` and a short `README.md` with the build commands and a link to the developer guide). `LICENSE`, `NOTICE`, `SECURITY.md`, `CONTRIBUTING.md` and the release workflow are copied.
-4. Profiles. The template has the shape of Jira (`Jira::Issue` in `Jira::Project`). For the other systems the script replaces
-   four files with the ones in `profiles/<system>/`, and sets `accepted-credential-types` for the system (Jira and Confluence
-   `user-secret`, GitLab `user-oauth`, service desk `service-account`, OpenSearch `token-exchange`).
+    ```bash
+    ./new-server.sh notes                         # creates ../mcp-server-notes
+    ./new-server.sh notes /path/to/mcp-server-notes
+    cd ../mcp-server-notes && git init
+    ./mvnw verify                                 # passes without manual changes
+    ```
 
-   | File | What changes |
-   | --- | --- |
-   | `ExampleResourceModel` (mcp-core) | resource type and container, identifier patterns of the contracts, scope rule |
-   | `ExampleResourceDescription` (mcp-integration) | attributes the Cedar schema of the system requires |
-   | `ExampleSearchQuery` (mcp-tools) | search query: JQL (Jira), CQL (Confluence), or built from the granted groups, queues or indices |
-   | `SampleScope` (test) | identifier shapes and read groups used by the tests |
+    The system id is lower case letters and digits, 2 to 31 characters, and not one the contracts reserve (`gateway`, `broker`,
+    `portal`, `admin`, ...). The script copies the files git tracks, renames, resets the version to `0.1.0-SNAPSHOT`, writes a short
+    README and CHANGELOG of its own and fails if the word `example` is left anywhere. The target path must not exist and must be outside
+    the template. `new-server.sh`, its test, this README, `STATUS.md` and the template's `CHANGELOG.md` are not copied.
 
-   Profiles: `gitlab`, `confluence`, `servicedesk`, `opensearch` (the last also replaces the port, use case, service, adapter,
-   tool and its test, because search works on index names). `jira` and trial servers use the template unchanged.
-5. Replace the domain and the adapter. Swap `<System>Record` for the objects of the system (only fields that tools return and
-   the policy needs). In `<System>ResourceAdapter` put the real API paths, response DTOs, the way the credential is attached
-   (`credential::applyTo` for `Authorization`, `credential.value()` for a header such as `PRIVATE-TOKEN`), 404 and 403 as
-   "not visible", 401 as `CredentialRequiredException`. `<System>ResourceDescription` must report attributes taken from the
-   system (project category, space labels, group topics, index tags). A resource without a required attribute is refused, so
-   never fill a gap with an empty value.
-6. Write the tools. Each tool in `<System>Tool` (or several classes) needs `@ToolRisk`, `@ToolTitle`, limits on every argument
-   and a `@ResourceRef` on every resource id. Register the class in `McpToolsConfiguration` and in `ManifestExport.manifest()`;
-   `ManifestTest` fails when the two differ. Search goes through `QueryScope`, results through `@ResourceRef` on the item or a
-   `ResultFilter`. A destructive tool uses action `delete` and the group `mcp-<system>-destructive`. Remove or rework the five
-   sample tools. Do not accept a query language from the model.
-7. Write the tests. `StubBackend` answers like the API of the system. For every tool that touches a resource: a `restricted`
-   resource gives the same `not_found_or_denied` as a missing one, a search never returns resources from outside its scope,
-   a missing group gives `access_denied`, plus `credential_required` (no credential, and 401 from the system) and
-   `invalid_argument`. `GatewayOnlyAccessTest` stays. Identifiers used in tests must match the resource patterns of the
-   contracts, which is why `SampleScope` differs per system.
-8. Finish the documentation and the deployment. Extend the generated README with the tools of the system (title, risk, action,
-   group `mcp-<system>-read|write|destructive` and credential type), write your own `STATUS.md`,
-   and set the deployment variables from `deploy/systemd/mcp-<system>.env.template`. For the dev stack build the image
-   with `docker build -t mcp-<system>:dev .`; the Dockerfile cannot use Alpine because `cedar-java` needs glibc.
+2. **Rename.** Everything below is what the script changes, so a copy made by hand changes the same places (`grep -rIil example .` lists
+   them; `LICENSE` stays as it is).
+
+    | What | `example` becomes `notes` in |
+    | --- | --- |
+    | System id (`example` -> `notes`) | `spring.application.name`, `server-id: mcp-notes` and `manifest.internal-url` in `mcp-app/src/main/resources/application.yml` and `application-dev.yml`; the `notes.backend.*` and `notes.writes-on-unknown-version` properties and the variables `MCP_NOTES_URL`, `MCP_NOTES_SSL_BUNDLE`, `MCP_NOTES_ALLOW_PLAIN_HTTP`, `MCP_NOTES_WRITES_ON_UNKNOWN_VERSION`; the groups `mcp-notes-read`, `-write`, `-destructive` in the policies and the tests; the certificate names `mcp-notes` and `mcp-notes.internal` in `deploy/` |
+    | Cedar namespace (`Example` -> `Notes`) | `namespace Notes` in `schema.cedarschema`; `Notes::Project` and `Notes::Record` in `resource-types.json` and `ExampleResourceModel` (`NotesResourceModel`); `Notes::Action::"read"` in the `*.cedar` files; the scope ids `Notes::Project/ABC` in `local/scope-mapping.json` and the tests; the ids of the policies (`notes-read`) |
+    | Java | the package `pl.aiwcorpo.mcp.example` (directories included) -> `pl.aiwcorpo.mcp.notes`; the class prefix `Example` (`ExampleTool`, `ExampleRecordResolver`, `ExamplePolicyTest`, ...) -> `Notes`; the Maven groupId `pl.aiwcorpo.mcp.notes`, the parent artifact `mcp-notes-parent`, the jar `mcp-notes.jar` |
+    | Deployment and CI | `deploy/systemd/mcp-notes.service` and `.env.template`, `deploy/compose.yaml` (service, image `mcp-server-notes`, `MCP_NOTES_VERSION`), `deploy/server.env`, the scripts in `deploy/scripts/`; `Dockerfile` and `ci/run.sh` (jar and image names); `.github/workflows/release.yml`; `NOTICE`; the `--server mcp-notes` of `.run/LocalGateway.run.xml` |
+
+    The Cedar namespace is the system id with a capital letter. If it should read differently (`NotesApp`), change it in the files of the
+    second row only; the starter takes the namespace from `resource-types.json` and the groups and the system id do not depend on it.
+
+3. **Write the resource types and the policies** in `mcp-app/src/main/resources/mcp/policies/`. These files are the server's own and the
+   starter refuses to start without them:
+
+    | File | What it holds |
+    | --- | --- |
+    | `schema.cedarschema` | one namespace, the server's own: an entity type for every resource the policies judge, each with `scopes: Set<ResourceScope>`, and the actions `read`, `update`, `delete`, `admin` that apply to them |
+    | `resource-types.json` | one declaration per entity type: `attributes` the resolver fills, `parent` and `parentAttribute`, `idPattern` (what an id argument and a resolved id must match), `scopePattern` (makes the type grantable in the scope mapping; omit it for a type nobody is granted), `earlyScopeCheck` (`true` only for a type whose scope is its exact id and that a write tool takes as `@ResourceRef`: the gateway then checks the argument before the call), `classification` (the attribute that carries `restricted`, `string` or `set`, required or not) |
+    | `*.cedar` | the resource policies, each with an `@id` unique in the server; actions are `Notes::Action::"read"` and so on. A policy that names `Action::"call"` or `Tool` is refused: that decision is the gateway's |
+
+    Write the rules for access. Do not write the rule for restricted data or for the service account: the platform generates them for
+    every declared type. The resolver gives each resource its `scopes` (the scope of the resource and of every container it lies in), see
+    `ExampleResourceDescription`. The starter validates the files at build time (the manifest is written in the `package` phase) and at
+    start, and the message lists every reason. The files are part of the manifest and its `policiesHash`, so changing one puts the
+    deployed server in `pending_approval` until an administrator approves it.
+
+4. **Test the policies.** `ExamplePolicyTest` (`NotesPolicyTest` after the rename) asks `PolicyDecisions` of `mcp-platform-test` in plain
+   JUnit, without Spring, a gateway or a backend:
+
+    ```java
+    PolicyDecisions policies = PolicyDecisions.fromResources()
+            .scopeMapping(Map.of("mcp-notes-proj-ABC", List.of("Notes::Project/ABC")));
+
+    policies.assertAllowed(PolicyDecisions.caller("mcp-notes-write", "mcp-notes-proj-ABC"), "update", record);
+    policies.assertDenied(PolicyDecisions.caller("mcp-notes-write"), "update", record);
+    ```
+
+    The test builds the resources as the resolver would (declared attributes, parent, scopes) and covers allowed and denied calls, a scope
+    that covers the record and one that does not, restricted data in any spelling, the service account outside the user's scopes, a client
+    the gateway does not allow and an emergency override. Write the same kind of cases for each policy you add. `./mvnw verify` runs
+    them, the tool tests of `mcp-app` over HTTP and the stub backend.
+
+5. **Run it locally** with LocalGateway, from IntelliJ: open the project and start the run configuration `Local stack` (in `.run/`). It
+   starts `Stub backend` (port 18081), `LocalGateway` (the gateway's stand-in: test JWKS and policy data from your policies and
+   `local/scope-mapping.json`, port 18500 for the MCP client) and `Server (dev)` (127.0.0.1:8080, dev profile). Connect an MCP client
+   (MCP Inspector, Claude Code) to `http://127.0.0.1:18500/mcp` with the header `Authorization: Bearer any-token`; the stub accepts any
+   token and `Bearer expired-1` answers 401 like a revoked one. The local user is in the groups `mcp-notes-read`, `-write` and
+   `-destructive`, and `local/scope-mapping.json` maps the write group to the projects `ABC` and `DEF`. Without IntelliJ, see "Run locally".
+
+6. **Add it to the platform.** Nothing restarts; the full calls are in [`deploy/README.md`](deploy/README.md).
+    1. Broker: add the system `notes` through the admin API or the portal (`PUT /v1/admin/systems/notes`).
+    2. Gateway: add the server `mcp-notes` for it through the admin API or the portal (`POST /admin/v1/servers`).
+    3. Deploy the server (`deploy/`). Its certificate is `CN=mcp-notes`, SAN `mcp-notes.internal`, `serverAuth` and `clientAuth`.
+    4. CI registers the manifest of the build (`mcp-app/target/mcp-manifest.json`) at the gateway. Tools are invisible until approved.
+    5. An administrator approves the policies and the tools that change data.
+    6. In the identity provider, put users in the groups `mcp-notes-read`, `mcp-notes-write` and `mcp-notes-destructive`; the
+       administrator maps the groups that may change resources to scopes in the scope mapping.
+
+7. **Remove it.** Kill switch for the server (if it must stop at once), delete the server in the gateway, delete the system in the broker,
+   stop the container. Nothing restarts.
+
+The rest of the work is the usual one: replace the sample domain and the adapter, write the tools (`@ToolRisk`, `@ToolTitle`, limits on
+every argument, `@ResourceRef` on every resource id), register the class in `McpToolsConfiguration` and in `ManifestExport.manifest()`
+(`ManifestTest` fails when they differ), write the tests, and extend the generated README with the tools (title, risk, action, group).
+Add a policy for every action a tool uses: `delete` for a `DESTRUCTIVE` tool (group `mcp-<system>-destructive`), `admin` where it applies.
+Search goes through `QueryScope`, results through `@ResourceRef` on the item or a `ResultFilter`; do not accept a query language from
+the model. `<System>ResourceDescription` must report the classification as the system says it; a resource without a required attribute
+is refused, so never fill a gap with an empty value. Set `MIN_MAJOR`, `MIN_MINOR` and `MAX_MAJOR` of the version probe to what you
+tested. The Dockerfile cannot use Alpine because `cedar-java` needs glibc.
 
 ## What the sample server contains
 
-Five tools, in the shape of Jira: `get_record`, `search_records`, `list_comments`, `get_comment` (all `READ_ONLY`) and
-`update_record` (`UPDATE`). They also show the four patterns the full servers use:
+Five tools, shaped like a ticket system: a `record` lies in a `project`, and the project carries the classification. `get_record`,
+`search_records`, `list_comments`, `get_comment` (all `READ_ONLY`) and `update_record` (`UPDATE`). Resource types: `Example::Project` (grantable,
+with the required classification `category`) and `Example::Record` (its parent is the project). Policies: reading follows the user's rights
+in the backend and needs the read group; a change needs the write group and a scope that covers the record. They also show the four
+patterns the full servers use:
 
 | Pattern | Where |
 | --- | --- |
@@ -99,73 +135,86 @@ Rules behind these patterns:
 
 ```bash
 export JAVA_HOME="$(/usr/libexec/java_home -v 25)"   # macOS; on Linux the JDK 25 directory
-./mvnw verify        # jar: mcp-app/target/mcp-example.jar
+./mvnw verify        # jar: mcp-app/target/mcp-example.jar, manifest: mcp-app/target/mcp-manifest.json
 make ci              # ci/run.sh verify; the same script runs in CI
-tests/new-server-test.sh --build    # generates every profile and builds each result
+tests/new-server-test.sh --build    # generates servers and builds each result
 ```
 
-Tests need no Docker and no platform environment. `TestGateway` from `mcp-platform-test` signs internal JWTs and serves JWKS,
-and `StubBackend` imitates the API of the system. `ci/run.sh generator` runs the generator test in CI.
+Tests need no Docker and no platform environment. `TestGateway` from `mcp-platform-test` signs internal JWTs, serves the JWKS and the
+policy data (with the scope mapping of `SampleScope`), and `StubBackend` (a test class) imitates the API of the system, including its
+faults. `ci/run.sh generator` runs the generator test in CI.
 
 The starter version is the property `mcp-platform.version` in `pom.xml`; the BOM pins the contracts. `new-server.sh` reads the
-version from there. Platform artifacts come from Maven Central or from `~/.m2` (see the README of
-`mcp-starter-lib`). Linux and macOS with bash 3.2 or newer; Windows only through WSL2.
+version from there (the `.run/LocalGateway.run.xml` file names the jar of the same version). Platform artifacts come from Maven Central
+or from `~/.m2` (see the README of `mcp-starter-lib`). Linux and macOS with bash 3.2 or newer; Windows only through WSL2.
 
-A normal build also writes `mcp-app/target/mcp-manifest.json` for servers of a real system (`manifest.export.skip=false`; the
-template and trial servers skip it). CI registers that file with the gateway: read-only tools are approved automatically, and
-new or changed `UPDATE` and `DESTRUCTIVE` tools wait for an administrator.
+The build writes `mcp-app/target/mcp-manifest.json`: the tools, the resource types, the policies and their hash. CI registers that file
+with the gateway: read-only tools are approved automatically, and new or changed `UPDATE` and `DESTRUCTIVE` tools, and every change of
+the policies, wait for an administrator.
 
 Modules: `mcp-core` (domain and ports), `mcp-application` (use cases), `mcp-integration` (adapter, resolver, version probe),
-`mcp-tools` (MCP tools and their errors), `mcp-app` (bootstrap, the single jar, end-to-end tests).
+`mcp-tools` (MCP tools and their errors), `mcp-app` (bootstrap, the policies, the single jar, end-to-end tests), `mcp-stub-backend` (the
+stand-in for the system, a separate small jar).
 
 ## Configuration
 
-`application.yml` is the production configuration: mTLS, JWKS of the gateway over TLS, `jti` store in Redis, `https` to the
-system. The template itself and trial servers run only in the `dev` profile. A server of a real system does not start without:
+`application.yml` is the production configuration: mTLS, JWKS and policy data of the gateway over TLS, `jti` store in Redis, `https` to
+the system. A server does not start without:
 
 | Variable | Meaning |
 | --- | --- |
-| `MCP_TLS_KEYSTORE`, `MCP_TLS_TRUSTSTORE`, `MCP_TLS_STORE_PASSWORD` | PKCS12 files: server certificate (SAN `mcp-example.internal`) and the internal CA |
+| `MCP_TLS_KEYSTORE`, `MCP_TLS_TRUSTSTORE`, `MCP_TLS_STORE_PASSWORD` | PKCS12 files: server certificate (CN `mcp-example`, SAN `mcp-example.internal`, `serverAuth` and `clientAuth`) and the internal CA |
 | `MCP_GATEWAY_JWKS_URI` | JWKS of the gateway's internal JWT (`https`) |
+| `MCP_GATEWAY_POLICY_DATA_URL` | Policy data of the gateway (`https://<gateway>:8443/internal/v1/policy-data`): scope mapping, allowed AI clients, emergency overrides; fetched with the server's own certificate |
 | `MCP_CONNECT_URL` | Portal page for connecting an account, with `{system}`; sent in `credential_required` |
 | `MCP_EXAMPLE_URL` | API address of the system (`https` outside `dev`) |
-| `MCP_POLICY_URL`, `MCP_POLICY_KEY_ID`, `MCP_POLICY_PUBLIC_KEY_FILE`, `MCP_POLICY_STATE_DIR` | Signed policy bundle (Ed25519); the state directory prevents a rollback after a restart; without a bundle within 30 s the server does not start |
 | `MCP_INTERNAL_URL` | Address of the server in the manifest |
 | `MCP_REDIS_HOST`, `MCP_REDIS_PORT`, `MCP_REDIS_USER`, `MCP_REDIS_PASSWORD` | Redis for single-use `jti` (ACL user `mcp-example`) |
 
-Also available: `MCP_PAGING_CURSOR_KEY` (Base64, at least 32 bytes, the same on every instance, treated as a secret;
-without it each process makes its own and cursors do not survive a restart), `MCP_EXAMPLE_SSL_BUNDLE`,
-`MCP_EXAMPLE_WRITES_ON_UNKNOWN_VERSION`, `MCP_GATEWAY_ISSUER`, `MCP_PORT` (`8443`), `MCP_BIND`, and
-`MCP_EXAMPLE_ALLOW_PLAIN_HTTP`, which allows `http` outside `dev` and exists only for the mocks of the dev stack.
-`MCP_ACCEPTED_CREDENTIAL_TYPES` lists the credential types the server accepts; the first one is the default and must match
-what the gateway and broker have for the system, otherwise registration fails with `credential_type_mismatch`. Defaults are in
-the [server environment reference](https://github.com/aiwcorpo/mcp-docs/blob/main/docs/reference/env-servers.md)
-(`docs/reference/env-servers.md` in `mcp-docs`). The MCP endpoint is `/mcp`; without a JWT only `/actuator/health` answers.
+Also available: `MCP_GATEWAY_TLS_NAME` (the name the gateway's certificate carries, when it is not the host of the policy data address),
+`MCP_PAGING_CURSOR_KEY` (Base64, at least 32 bytes, the same on every instance, treated as a secret; without it each process makes its
+own and cursors do not survive a restart), `MCP_EXAMPLE_SSL_BUNDLE`, `MCP_EXAMPLE_WRITES_ON_UNKNOWN_VERSION`, `MCP_GATEWAY_ISSUER`,
+`MCP_PORT` (`8443`), `MCP_BIND`, and `MCP_EXAMPLE_ALLOW_PLAIN_HTTP`, which allows `http` outside `dev` and exists only for the mocks of a
+test stack. `MCP_ACCEPTED_CREDENTIAL_TYPES` lists the credential types the server accepts; the first one is the default and must match
+what the gateway and the broker have for the system, otherwise registration fails with `credential_type_mismatch`. There is no
+`MCP_POLICY_*`: the policies are in the jar and the data comes from the gateway. The MCP endpoint is `/mcp`; without a JWT only
+`/actuator/health` answers.
 
-## Run locally without the platform
+## Run locally
 
-The `dev` profile must be the only active profile. It serves plain HTTP on 127.0.0.1, keeps `jti` in memory and needs no
-certificates. There is no gateway, so it only shows that the server starts and rejects requests without a JWT:
+The `dev` profile must be the only active profile. It serves plain HTTP on 127.0.0.1, keeps `jti` in memory and needs no certificates.
+The starter refuses it in a container or under systemd, so run it on the workstation. The IntelliJ configurations are in `.run/`; the
+same from a shell, after `./mvnw verify`:
 
 ```bash
-SPRING_PROFILES_ACTIVE=dev MCP_PORT=18491 "$JAVA_HOME/bin/java" -jar mcp-app/target/mcp-example.jar
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:18491/actuator/health    # 200
+java -jar mcp-stub-backend/target/mcp-stub-backend.jar &                                  # 127.0.0.1:18081
+java -jar ~/.m2/repository/pl/aiwcorpo/mcp/mcp-platform-test/4.0.0/mcp-platform-test-4.0.0-local-gateway.jar \
+  --server mcp-example --jwks-port 18445 --policies-dir mcp-app/src/main/resources/mcp/policies \
+  --scope-mapping local/scope-mapping.json --env-file local/local-gateway.env &           # MCP endpoint 127.0.0.1:18500
+SPRING_PROFILES_ACTIVE=dev "$JAVA_HOME/bin/java" -jar mcp-app/target/mcp-example.jar      # 127.0.0.1:8080
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/actuator/health            # 200
 curl -s -o /dev/null -w '%{http_code}\n' -X POST -H 'Content-Type: application/json' \
      -H 'Accept: application/json, text/event-stream' \
-     -d '{"jsonrpc":"2.0","id":1,"method":"ping"}' http://127.0.0.1:18491/mcp       # 401
+     -d '{"jsonrpc":"2.0","id":1,"method":"ping"}' http://127.0.0.1:8080/mcp               # 401, no JWT
 ```
 
-The `dev` profile accepts JWTs signed with the published test keys of the contracts and needs no client certificate. For that
-reason it listens on loopback only, and the starter refuses to start `dev` on another address. Never enable it on a host or in a
-container that the gateway connects to, and never put `SPRING_PROFILES_ACTIVE=dev` into an `.env` file, a systemd unit or an
-image. Running against the dev stack (mTLS from the host, or the `devstack` profile in containers) needs a local stack that is not public yet;
-to run the platform use the Compose install in `mcp-docs` (`examples/compose`). It works only for the five systems of the contracts.
+LocalGateway forwards `http://127.0.0.1:18500/mcp` to the server with an internal JWT of a local user and your `Authorization` header as
+the backend credential. It does none of the gateway's work (no login, no tool approval, no confirmation of destructive tools) and
+signs with the published test keys, which only the `dev` profile accepts. It serves the approval of the policies in the jar, so the
+server decides at once; `--scope-mapping` takes your own mapping, `--groups` the groups of the local user. The `dev` profile accepts JWTs
+signed with the published test keys and needs no client certificate. For that reason it listens on loopback only; never put
+`SPRING_PROFILES_ACTIVE=dev` into an `.env` file, a systemd unit or an image.
+
+Against a real system instead of the stub: `MCP_EXAMPLE_URL=https://...` in the environment of the server and a real token in the
+`Authorization` header of the client. A platform stack in containers (the `devstack` profile) is described in the README of
+`mcp-starter-lib`.
 
 ## Install
 
-A generated server is one jar or one image. For a VM with systemd use `deploy/scripts/install.sh` and
-`deploy/systemd/mcp-example.env.template`; the [VM installation guide](https://github.com/aiwcorpo/mcp-docs/blob/main/docs/operator/install-vm.md) in `mcp-docs` has the steps. For a container run
-`docker build` after `./mvnw verify` (image `eclipse-temurin:25-jre`, user `mcp`, port 8443, mTLS). Operating notes are in `mcp-docs`.
+A server is one jar or one image. `deploy/` has the Compose file with `server.env` and `certs/`, the systemd unit, the installation
+scripts and the steps to add the server to the platform and to remove it; for a container run `docker build` (or
+`docker compose build` in `deploy/`) after `./mvnw verify` (image `eclipse-temurin:25-jre`, user `mcp`, port 8443, mTLS). Operating notes
+are in `mcp-docs`.
 
 ## Documentation
 

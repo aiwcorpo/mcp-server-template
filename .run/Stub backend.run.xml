@@ -1,0 +1,10 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Stub backend" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="pl.aiwcorpo.mcp.example.stub.StubBackendServer" />
+    <module name="mcp-stub-backend" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

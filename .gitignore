@@ -17,3 +17,4 @@ target/
 # Logs
 *.log
 .m2/
+local/local-gateway.env

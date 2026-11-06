@@ -1,0 +1,18 @@
+<component name="ProjectRunConfigurationManager">
+  <!--
+    The dev profile on 127.0.0.1:8080, looking for LocalGateway on port 18445 and the stub backend on 18081 (the defaults of
+    application-dev.yml). Refused in a container or under systemd; run it on the workstation.
+  -->
+  <configuration default="false" name="Server (dev)" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="pl.aiwcorpo.mcp.example.app.McpServerApplication" />
+    <module name="mcp-app" />
+    <option name="VM_PARAMETERS" value="--enable-native-access=ALL-UNNAMED" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <envs>
+      <env name="SPRING_PROFILES_ACTIVE" value="dev" />
+    </envs>
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

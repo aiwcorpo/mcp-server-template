@@ -1,0 +1,3 @@
+[
+  {"group": "mcp-example-write", "scopes": ["Example::Project/ABC", "Example::Project/DEF"]}
+]

@@ -11,7 +11,7 @@
 #   ci/run.sh generator      template only: tests/new-server-test.sh --build (a generated server builds and passes)
 #   ci/run.sh image           docker build of the jar that verify made; main branch only, needs a Docker daemon
 #
-# CI_TEST_MODULES (default: mcp-application mcp-integration mcp-tools mcp-app) lists the modules that must have run tests, CI_APP_MIN_TESTS the
+# CI_TEST_MODULES (default: mcp-application mcp-integration mcp-tools mcp-app mcp-stub-backend) lists the modules that must have run tests, CI_APP_MIN_TESTS the
 # floor for mcp-app, CI_IMAGE_TAG_PREFIX (default m6) the prefix of the image tag mcp-server-<system>:<prefix>-<sha7>.
 # Any other argument is an error (exit 2). The tests need no container runtime, so a merge request pipeline mounts no
 # Docker socket and holds no secret.
@@ -105,7 +105,7 @@ hygiene() {
 }
 
 # A build that ran no test proves nothing (a skipped module, a broken surefire setup, every test skipped), so each module
-# of CI_TEST_MODULES (default: the modules with tests in the template; a system whose profile adds tests elsewhere sets it)
+# of CI_TEST_MODULES (default: the modules with tests in the template; a server that adds a module with tests lists it)
 # must have run tests that were not skipped, and mcp-app at least CI_APP_MIN_TESTS of them (a floor, so that a test class
 # that quietly stopped being found shows).
 module_executed() {
@@ -121,7 +121,7 @@ module_executed() {
 
 require_tests_ran() {
   local module executed floor
-  for module in ${CI_TEST_MODULES:-mcp-application mcp-integration mcp-tools mcp-app}; do
+  for module in ${CI_TEST_MODULES:-mcp-application mcp-integration mcp-tools mcp-app mcp-stub-backend}; do
     executed="$(module_executed "$module")"
     floor=1
     if [[ "$module" == "mcp-app" ]]; then

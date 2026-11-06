@@ -48,6 +48,7 @@ jobs:
         run: |
           version="${GITHUB_REF_NAME#v}"
           test "$(./mvnw -q -B -N org.apache.maven.plugins:maven-help-plugin:3.5.1:evaluate -Dexpression=project.version -DforceStdout)" = "$version"
+          grep -qF "mcp-server-example:\${MCP_EXAMPLE_VERSION:-$version}" deploy/compose.yaml
       - name: Verify (tests, manifest)
         run: ci/run.sh verify
       - name: SBOM (CycloneDX)

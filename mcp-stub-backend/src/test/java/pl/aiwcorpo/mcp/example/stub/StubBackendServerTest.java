@@ -47,6 +47,13 @@ class StubBackendServerTest {
     }
 
     @Test
+    void theWhoamiNamesTheUserForAnyTokenAndRefusesMissingAndExpiredOnes() throws Exception {
+        assertThat(send("GET", "/api/me", "Bearer any-token", null).body()).contains("\"username\":\"stub-user\"");
+        assertThat(send("GET", "/api/me", null, null).statusCode()).isEqualTo(401);
+        assertThat(send("GET", "/api/me", "Bearer expired-token", null).statusCode()).isEqualTo(401);
+    }
+
+    @Test
     void aRecordCarriesTheClassificationOfItsProject() throws Exception {
         assertThat(send("GET", "/api/records/HR-5", "Bearer t", null).body())
                 .contains("\"project\":\"HR\"", "\"projectClassification\":\"Restricted\"");

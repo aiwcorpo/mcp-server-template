@@ -86,7 +86,9 @@ Example: a server for the system `notes`.
    `-destructive`, and `local/scope-mapping.json` maps the write group to the projects `ABC` and `DEF`. Without IntelliJ, see "Run locally".
 
 6. **Add it to the platform.** Nothing restarts; the full calls are in [`deploy/README.md`](deploy/README.md).
-    1. Broker: add the system `notes` through the admin API or the portal (`PUT /v1/admin/systems/notes`).
+    1. Broker: add the system `notes` through the admin API or the portal (`PUT /v1/admin/systems/notes`): adapter `generic-rest`,
+       type `user-secret`, with `whoami` (`path` and `usernameField`, `/api/me` and `username` for the stub) so the broker checks a token
+       when it is stored and records the backend user; without `whoami` it stores the token unverified.
     2. Gateway: add the server `mcp-notes` for it through the admin API or the portal (`POST /admin/v1/servers`).
     3. Deploy the server (`deploy/`). Its certificate is `CN=mcp-notes`, SAN `mcp-notes.internal`, `serverAuth` and `clientAuth`.
     4. CI registers the manifest of the build (`mcp-app/target/mcp-manifest.json`) at the gateway. Tools are invisible until approved.

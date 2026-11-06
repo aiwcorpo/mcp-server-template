@@ -53,8 +53,12 @@ calls below.
     ```bash
     curl --cert bff.crt --key bff.key --cacert ca.crt -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
       -H 'If-None-Match: *' -X PUT https://mcp-credential-broker.internal:8443/v1/admin/systems/example \
-      -d '{"baseUrl":"https://backend.corp.internal","adapter":"generic-rest","supportedTypes":["user-secret"],"defaultType":"user-secret","secretScheme":"Bearer"}'
+      -d '{"baseUrl":"https://backend.corp.internal","adapter":"generic-rest","supportedTypes":["user-secret"],"defaultType":"user-secret","secretScheme":"Bearer","whoami":{"path":"/api/me","usernameField":"username"}}'
     ```
+
+    `whoami` is the path the broker calls with the user's token and the field of the answer that holds the user name: the token is then
+    checked when it is stored and the backend user is recorded. Without `whoami` the broker stores the token unverified. The stub
+    backend answers `GET /api/me`.
 
 2. Gateway, server: `POST /admin/v1/servers`. The `serverId` is `mcp-example`; the credential agrees with the broker and with
    `MCP_ACCEPTED_CREDENTIAL_TYPES`.

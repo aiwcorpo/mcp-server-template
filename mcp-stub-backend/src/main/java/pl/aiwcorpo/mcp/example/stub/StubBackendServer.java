@@ -23,7 +23,7 @@ import java.util.regex.Pattern;
  * (LocalGateway on a workstation, a container next to the server in a test stack) without a real system.
  *
  * <p>It answers the paths {@code ExampleResourceAdapter} calls: {@code GET /api/server-info} (no credential, like a
- * version probe), {@code GET /api/records/{id}}, {@code GET /api/records?ids=} and {@code ?query=&limit=} (the query the
+ * version probe), {@code GET /api/me} (the whoami the broker uses), {@code GET /api/records/{id}}, {@code GET /api/records?ids=} and {@code ?query=&limit=} (the query the
  * server builds: {@code project in ("ABC") AND text ~ "report"}), {@code PUT /api/records/{id}} for the title and the
  * comments of a record. Any request but the version needs an {@code Authorization} header and the stub accepts every
  * value except one that starts with {@code expired}, which is answered 401 like a revoked token, so the
@@ -72,6 +72,7 @@ public final class StubBackendServer {
         StubBackendServer stub = new StubBackendServer(http);
         http.createContext("/api/server-info", stub::serverInfo);
         http.createContext("/api/records", stub::records);
+        http.createContext("/api/me", stub::me);
         http.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         http.start();
         return stub;
@@ -114,6 +115,22 @@ public final class StubBackendServer {
         respond(exchange, 200, "{\"name\":\"stub\",\"version\":\"" + VERSION + "\"}");
     }
 
+    /** The whoami of the system: the broker calls it with the user's token to check it and learn the user name. */
+    private void me(HttpExchange exchange) throws IOException {
+        String authorization = exchange.getRequestHeaders().getFirst("Authorization");
+        if (authorization == null || authorization.isBlank()) {
+            respond(exchange, 401, "{\"message\":\"credential required\"}");
+        } else if (isExpired(authorization)) {
+            respond(exchange, 401, "{\"message\":\"token expired\"}");
+        } else {
+            respond(exchange, 200, "{\"username\":\"stub-user\"}");
+        }
+    }
+
+    private static boolean isExpired(String authorization) {
+        return authorization.toLowerCase(Locale.ROOT).replaceFirst("^\\S+\\s+", "").startsWith("expired");
+    }
+
     private void records(HttpExchange exchange) throws IOException {
         try (exchange) {
             String authorization = exchange.getRequestHeaders().getFirst("Authorization");
@@ -121,7 +138,7 @@ public final class StubBackendServer {
                 send(exchange, 401, "{\"message\":\"credential required\"}");
                 return;
             }
-            if (authorization.toLowerCase(Locale.ROOT).replaceFirst("^\\S+\\s+", "").startsWith("expired")) {
+            if (isExpired(authorization)) {
                 send(exchange, 401, "{\"message\":\"token expired\"}");
                 return;
             }

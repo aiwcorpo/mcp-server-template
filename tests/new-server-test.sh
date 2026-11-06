@@ -76,6 +76,7 @@ check "compose file starts at the first version of a generated server" grep -q '
 check "certificate names in the deploy files follow the server id" bash -c "grep -q 'mcp-notes.internal' '$server/deploy/README.md' && grep -q 'CN=mcp-notes' '$server/deploy/README.md'"
 
 check "stub backend and run configurations are generated" test -s "$server/mcp-stub-backend/pom.xml" -a -s "$server/.run/LocalGateway.run.xml" -a -s "$server/local/scope-mapping.json"
+check "whoami reaches the generated stub and the deploy steps" bash -c "grep -q '/api/me' '$server/mcp-stub-backend/src/main/java/pl/aiwcorpo/mcp/notes/stub/StubBackendServer.java' && grep -q 'whoami' '$server/deploy/README.md'"
 check "scope mapping uses the renamed namespace" grep -q 'Notes::Project/' "$server/local/scope-mapping.json"
 
 check "generated README is its own, not the template's" bash -c "! cmp -s '$template/README.md' '$server/README.md' && grep -q '^# mcp-notes\$' '$server/README.md' && ! grep -qi 'new-server.sh\\|Create a new MCP server\\|mcp-example' '$server/README.md'"

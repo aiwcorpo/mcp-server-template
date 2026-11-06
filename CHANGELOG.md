@@ -23,6 +23,8 @@ migration guide in the CHANGELOG of `mcp-starter-lib`, 4.0.0).
   their own). The Cedar namespace is renamed with the system, `LICENSE` is copied unchanged, the compose file starts at `0.1.0`.
 - `mcp-stub-backend`: a small stand-in for the system, so the server runs end to end without one. IntelliJ run configurations (`.run/`)
   start it with LocalGateway (server policies, `local/scope-mapping.json`) and the server in the dev profile.
+- The stub backend answers `GET /api/me` (whoami), and the broker system is registered as `generic-rest` with `user-secret` and `whoami`
+  (contracts CC-247); without `whoami` the broker stores the token unverified.
 - `deploy/`: `compose.yaml` with `server.env` and `certs/` (profile `stub` for the stub backend), the steps to add a server to the platform
   and to remove it, the policy data address in the systemd environment template; the release workflow checks that the compose file pins
   the released version.

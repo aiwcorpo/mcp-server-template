@@ -56,3 +56,4 @@ jobs:
           path: |
             mcp-app/target/mcp-*.jar
             mcp-app/target/mcp-manifest.json
+          if-no-files-found: error

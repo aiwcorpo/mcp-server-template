@@ -40,7 +40,7 @@ Example: a server for the system `notes`.
     | What | `example` becomes `notes` in |
     | --- | --- |
     | System id (`example` -> `notes`) | `spring.application.name`, `server-id: mcp-notes` and `manifest.internal-url` in `mcp-app/src/main/resources/application.yml` and `application-dev.yml`; the `notes.backend.*` and `notes.writes-on-unknown-version` properties and the variables `MCP_NOTES_URL`, `MCP_NOTES_SSL_BUNDLE`, `MCP_NOTES_ALLOW_PLAIN_HTTP`, `MCP_NOTES_WRITES_ON_UNKNOWN_VERSION`; the groups `mcp-notes-read`, `-write`, `-destructive` in the policies and the tests; the certificate names `mcp-notes` and `mcp-notes.internal` in `deploy/` |
-    | Cedar namespace (`Example` -> `Notes`) | `namespace Notes` in `schema.cedarschema`; `Notes::Project` and `Notes::Record` in `resource-types.json` and `ExampleResourceModel` (`NotesResourceModel`); `Notes::Action::"read"` in the `*.cedar` files; the scope ids `Notes::Project/ABC` in `local/scope-mapping.json` and the tests; the ids of the policies (`notes-read`) |
+    | Cedar namespace (`Example` -> `Notes`) | `namespace Notes` in `schema.cedarschema`; `Notes::Project` and `Notes::Record` in `resource-types.json` and `ExampleResourceModel` (`NotesResourceModel`); `Notes::Action::"read"` in the `*.cedar` files; the scope ids `Notes::Project/ABC` in `.run/scope-mapping.json` and the tests; the ids of the policies (`notes-read`) |
     | Java | the package `pl.aiwcorpo.mcp.example` (directories included) -> `pl.aiwcorpo.mcp.notes`; the class prefix `Example` (`ExampleTool`, `ExampleRecordResolver`, `ExamplePolicyTest`, ...) -> `Notes`; the Maven groupId `pl.aiwcorpo.mcp.notes`, the parent artifact `mcp-notes-parent`, the jar `mcp-notes.jar` |
     | Deployment and CI | `deploy/systemd/mcp-notes.service` and `.env.template`, `deploy/compose.yaml` (service, image `mcp-server-notes`, `MCP_NOTES_VERSION`), `deploy/server.env`, `Dockerfile` (jar and image names); `.github/workflows/release.yml`; `NOTICE`; the `--server mcp-notes` of `.run/LocalGateway.run.xml` |
 
@@ -79,12 +79,12 @@ Example: a server for the system `notes`.
     them, and the tool tests of `mcp-app` over HTTP against an in-process stub backend.
 
 5. **Run it locally** with LocalGateway, from IntelliJ: open the project and start the run configurations `LocalGateway` (the gateway's
-   stand-in: test JWKS and policy data from your policies and `local/scope-mapping.json`, port 18500 for the MCP client) and
+   stand-in: test JWKS and policy data from your policies and `.run/scope-mapping.json`, port 18500 for the MCP client) and
    `Server (dev)` (127.0.0.1:8080, dev profile) from `.run/`. The server needs the system at `MCP_NOTES_URL` (default
    `http://localhost:18081`); a real one, or the stub backend of the `mcp-e2e` repository (`stub-backend/`, which accepts any token
    and answers 401 to one that starts with `expired`). Connect an MCP client (MCP Inspector, Claude Code) to
    `http://127.0.0.1:18500/mcp` with the header `Authorization: Bearer any-token`. The local user is in the groups `mcp-notes-read`,
-   `-write` and `-destructive`, and `local/scope-mapping.json` maps the write group to the projects `ABC` and `DEF`. Without IntelliJ,
+   `-write` and `-destructive`, and `.run/scope-mapping.json` maps the write group to the projects `ABC` and `DEF`. Without IntelliJ,
    see "Run locally".
 
 6. **Add it to the platform.** Nothing restarts; the full calls are in [`deploy/README.md`](deploy/README.md).
@@ -192,7 +192,7 @@ same from a shell, after `./mvnw verify`:
 # the system on 127.0.0.1:18081 (or MCP_EXAMPLE_URL), for a first try the stub of mcp-e2e/stub-backend
 java -jar ~/.m2/repository/pl/aiwcorpo/mcp/mcp-platform-test/4.0.0/mcp-platform-test-4.0.0-local-gateway.jar \
   --server mcp-example --jwks-port 18445 --policies-dir mcp-app/src/main/resources/mcp/policies \
-  --scope-mapping local/scope-mapping.json --env-file local/local-gateway.env &           # MCP endpoint 127.0.0.1:18500
+  --scope-mapping .run/scope-mapping.json --env-file local-gateway.env &           # MCP endpoint 127.0.0.1:18500
 SPRING_PROFILES_ACTIVE=dev "$JAVA_HOME/bin/java" -jar mcp-app/target/mcp-example.jar      # 127.0.0.1:8080
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/actuator/health            # 200
 curl -s -o /dev/null -w '%{http_code}\n' -X POST -H 'Content-Type: application/json' \

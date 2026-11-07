@@ -175,7 +175,7 @@ In IntelliJ start the run configurations \`LocalGateway\` and \`Server (dev)\` (
 \`\`\`bash
 java -jar ~/.m2/repository/pl/aiwcorpo/mcp/mcp-platform-test/$platform_version/mcp-platform-test-$platform_version-local-gateway.jar \\
   --server mcp-$system --jwks-port 18445 --policies-dir mcp-app/src/main/resources/mcp/policies \\
-  --scope-mapping local/scope-mapping.json --env-file local/local-gateway.env &   # MCP endpoint 127.0.0.1:18500
+  --scope-mapping .run/scope-mapping.json --env-file local-gateway.env &   # MCP endpoint 127.0.0.1:18500
 SPRING_PROFILES_ACTIVE=dev java -jar mcp-app/target/mcp-$system.jar            # 127.0.0.1:8080
 \`\`\`
 

@@ -1,12 +1,12 @@
 <component name="ProjectRunConfigurationManager">
   <!--
-    Stands in for the gateway: test JWKS, policy data (the policies of mcp-app and local/scope-mapping.json) and the
+    Stands in for the gateway: test JWKS, policy data (the policies of mcp-app and .run/scope-mapping.json) and the
     forwarding of /mcp with your Authorization header as the credential of the backend. The jar comes from ~/.m2, the version
-    is mcp-platform.version of pom.xml. Writes local/local-gateway.env, which is not needed when the server runs from here.
+    is mcp-platform.version of pom.xml. Writes local-gateway.env in the project directory, which is not needed when the server runs from here.
   -->
   <configuration default="false" name="LocalGateway" type="JarApplication">
     <option name="JAR_PATH" value="$USER_HOME$/.m2/repository/pl/aiwcorpo/mcp/mcp-platform-test/4.0.0/mcp-platform-test-4.0.0-local-gateway.jar" />
-    <option name="PROGRAM_PARAMETERS" value="--server mcp-example --jwks-port 18445 --policies-dir mcp-app/src/main/resources/mcp/policies --scope-mapping local/scope-mapping.json --env-file local/local-gateway.env" />
+    <option name="PROGRAM_PARAMETERS" value="--server mcp-example --jwks-port 18445 --policies-dir mcp-app/src/main/resources/mcp/policies --scope-mapping .run/scope-mapping.json --env-file local-gateway.env" />
     <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
     <method v="2" />
   </configuration>

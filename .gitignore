@@ -17,5 +17,5 @@ target/
 # Logs
 *.log
 .m2/
-local/local-gateway.env
+local-gateway.env
 STATUS.md

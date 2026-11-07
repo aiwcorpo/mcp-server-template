@@ -8,6 +8,8 @@ Versions follow SemVer, newest first.
   `tests/new-server-test.sh`: test material does not belong in the repository users copy. Both are in `mcp-e2e` now (`stub-backend/`
   and `tests/new-server-test.sh`, which runs against `../mcp-server-template`). The `generator` job of the three CI files is gone with the
   test. In-process tests keep their own `StubBackend` in `mcp-app`.
+- The scope mapping of LocalGateway moved from `local/` to `.run/scope-mapping.json` and its generated env file to `local-gateway.env`
+  in the project directory, as in the other servers; the `local/` directory is gone.
 
 ## 2.0.0 - 2026-11-06
 

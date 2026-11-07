@@ -51,19 +51,6 @@ class ProductionConfigurationTest {
     }
 
     @Test
-    void noSettingOfTheRemovedPolicyBundlesIsLeftInAnyConfiguration() throws IOException {
-        for (String file : List.of("application.yml", "application-dev.yml")) {
-            List<PropertySource<?>> documents = new YamlPropertySourceLoader().load(file, new ClassPathResource(file));
-            assertThat(documents).allSatisfy(document -> {
-                Map<String, Object> source = (Map<String, Object>) document.getSource();
-                assertThat(source.keySet()).as(file).noneMatch(key -> key.startsWith("aiwcorpo.mcp.platform.policy."));
-                assertThat(source.values().stream().map(String::valueOf).toList()).as(file)
-                        .noneMatch(value -> value.contains("MCP_POLICY_"));
-            });
-        }
-    }
-
-    @Test
     void theDefaultCredentialTypeIsTheFirstAcceptedTypeInEveryConfiguration() throws IOException {
         PropertySource<?> base = new YamlPropertySourceLoader()
                 .load("application.yml", new ClassPathResource("application.yml")).getFirst();

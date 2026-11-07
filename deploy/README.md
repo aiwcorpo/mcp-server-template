@@ -57,8 +57,7 @@ calls below.
     ```
 
     `whoami` is the path the broker calls with the user's token and the field of the answer that holds the user name: the token is then
-    checked when it is stored and the backend user is recorded. Without `whoami` the broker stores the token unverified. The stub
-    backend answers `GET /api/me`.
+    checked when it is stored and the backend user is recorded. Without `whoami` the broker stores the token unverified.
 
 2. Gateway, server: `POST /admin/v1/servers`. The `serverId` is `mcp-example`; the credential agrees with the broker and with
    `MCP_ACCEPTED_CREDENTIAL_TYPES`.
@@ -90,12 +89,6 @@ calls below.
 4. Stop the container: `docker compose down`.
 
 Nothing else restarts.
-
-## Test stack with the stub backend
-
-`docker compose --profile stub up -d` also starts `mcp-stub-backend` (build the repository first). In `server.env` set
-`MCP_EXAMPLE_URL=http://stub-backend:18081` and `MCP_EXAMPLE_ALLOW_PLAIN_HTTP=true`; in the broker the system points at that address
-with an `http` base URL, which only a broker in its dev profile accepts. The stub takes any credential.
 
 ## Ports
 

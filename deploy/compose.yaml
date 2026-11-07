@@ -1,8 +1,7 @@
 # The server behind the gateway. Configuration: server.env and the files in certs/. Redis for the one-time jti is started
 # here too (service redis, next to the server). See README.md.
 #
-# Built after ./mvnw verify with "docker compose build", or pulled from the registry. The "stub" profile adds the stub backend
-# of mcp-stub-backend/ for a test stack without a real system; it is never for a production host.
+# Built after ./mvnw verify with "docker compose build", or pulled from the registry.
 #
 # Closed network: MCP_REGISTRY in a .env file next to this one points the image to your registry.
 
@@ -45,18 +44,6 @@ services:
       timeout: 3s
       retries: 40
       start_period: 30s
-
-  stub-backend:
-    profiles: [stub]
-    image: eclipse-temurin:25-jre@sha256:78f1f183913482ef390c2722f46c3f0ce76ada341d69590e7c482ec943ee72d5
-    restart: unless-stopped
-    read_only: true
-    cap_drop: [ALL]
-    security_opt: ["no-new-privileges:true"]
-    # Reachable from the server only: nothing is published, and it accepts any credential.
-    command: ["java", "-jar", "/app/stub-backend.jar", "--bind", "0.0.0.0", "--port", "18081"]
-    volumes:
-      - ../mcp-stub-backend/target/mcp-stub-backend.jar:/app/stub-backend.jar:ro
 
   # Redis for the one-time jti of the internal JWT, next to the server and reachable from it only. The default user is off; the one
   # account is named like MCP_REDIS_USER and may run SET on its own jti keys. Its password is MCP_REDIS_PASSWORD of the env file

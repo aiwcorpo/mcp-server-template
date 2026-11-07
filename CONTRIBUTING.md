@@ -8,7 +8,7 @@ contract (a resource type, a query field, a credential type) starts as a `propos
 
 JDK 25, Linux or macOS with bash 3.2 or newer; Windows only through WSL2. The platform artifacts come from Maven Central or must be
 in `~/.m2` (see the README of `mcp-starter-lib`). No container runtime and no backend system are
-needed: the tests run the whole server against a stub backend.
+needed: the tests run the whole server against an in-process stub backend (`StubBackend` in `mcp-app`).
 
 ```bash
 ./mvnw -B verify     # the same command runs in CI

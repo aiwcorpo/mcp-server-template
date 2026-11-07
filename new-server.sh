@@ -11,7 +11,7 @@
 #   example / Example / EXAMPLE -> <system> / <System> / <SYSTEM>
 # The Cedar namespace is the Example form (Example::Record becomes <System>::Record) and the groups of the policies are
 # mcp-<system>-read and so on; everything else the policies need comes from the files in mcp/policies/, which are copied
-# and renamed like any other. Template-only files (this script, its test, README.md, CHANGELOG.md) are not
+# and renamed like any other. Template-only files (this script, README.md, CHANGELOG.md) are not
 # copied; the generated server gets a CHANGELOG.md and a short README.md of its own, both in English; the project version
 # is reset to 0.1.0-SNAPSHOT. LICENSE is copied unchanged, NOTICE, SECURITY.md, CONTRIBUTING.md and the release workflow
 # like the rest. Afterwards no "example" may remain; on any failure the target directory is removed.
@@ -114,7 +114,7 @@ mkdir "$target"
 while IFS= read -r file; do
     [[ -f "$file" ]] || continue
     case "$file" in
-        new-server.sh | tests/new-server-test.sh | README.md | CHANGELOG.md) continue ;;
+        new-server.sh | README.md | CHANGELOG.md) continue ;;
     esac
     destination="$target/$(printf '%s' "$file" | rename)"
     mkdir -p "$(dirname "$destination")"
@@ -151,7 +151,7 @@ credential the gateway attaches to each request. Its Cedar namespace is \`$Syste
 
 ## Build
 
-JDK 25 is required; no container runtime and no running $system are needed, the tests use a stub backend.
+JDK 25 is required; no container runtime and no running $system are needed, the tests use an in-process stub backend.
 
 \`\`\`bash
 export JAVA_HOME="\$(/usr/libexec/java_home -v 25)"   # macOS; on Linux the JDK 25 directory
@@ -168,18 +168,19 @@ The record domain, the adapter and the policies are placeholders: replace them w
 
 ## Run locally
 
-In IntelliJ the run configuration \`Local stack\` (in \`.run/\`) starts the stub backend, LocalGateway and the server. From a shell, after
-\`./mvnw verify\`:
+In IntelliJ start the run configurations \`LocalGateway\` and \`Server (dev)\` (in \`.run/\`). The server looks for $system at
+127.0.0.1:18081 (\`MCP_${SYSTEM}_URL\` changes that); for a first try without a real $system, the stub backend of the mcp-e2e repository
+(\`stub-backend/\`) listens there. From a shell, after \`./mvnw verify\`:
 
 \`\`\`bash
-java -jar mcp-stub-backend/target/mcp-stub-backend.jar &                      # 127.0.0.1:18081
 java -jar ~/.m2/repository/pl/aiwcorpo/mcp/mcp-platform-test/$platform_version/mcp-platform-test-$platform_version-local-gateway.jar \\
   --server mcp-$system --jwks-port 18445 --policies-dir mcp-app/src/main/resources/mcp/policies \\
   --scope-mapping local/scope-mapping.json --env-file local/local-gateway.env &   # MCP endpoint 127.0.0.1:18500
 SPRING_PROFILES_ACTIVE=dev java -jar mcp-app/target/mcp-$system.jar            # 127.0.0.1:8080
 \`\`\`
 
-An MCP client connects to \`http://127.0.0.1:18500/mcp\` with \`Authorization: Bearer <any token>\`; the stub accepts any token.
+An MCP client connects to \`http://127.0.0.1:18500/mcp\` with \`Authorization: Bearer <any token>\`, which the backend then receives as the
+credential.
 
 ## Deployment
 
@@ -202,6 +203,6 @@ cat <<EOF
 Generated mcp-$system in $target
 Next:
   cd $target && git init
-  ./mvnw -B verify       # JDK 25; builds and runs the tests against TestGateway and a stub backend
+  ./mvnw -B verify       # JDK 25; builds and runs the tests against TestGateway and an in-process stub backend
 Then replace the sample record domain and the policies with the real ones (README of the template, "Create a new MCP server").
 EOF

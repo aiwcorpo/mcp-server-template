@@ -26,13 +26,5 @@ pipeline {
         }
       }
     }
-    stage('generator (template only)') {
-      when { allOf { expression { fileExists('tests/new-server-test.sh') }; anyOf { changeRequest(); branch 'main' } } }
-      agent { docker { image 'maven:3.9.12-eclipse-temurin-25@sha256:4f82a03a7d6679281952d628131299b1be88d7030a49c6a2b7d2ba2642e44e3e'; args '-u root' } }
-      steps {
-        sh 'apt-get update -qq && apt-get install -y -qq python3 unzip perl git'
-        sh 'git config --global --add safe.directory "$WORKSPACE" && tests/new-server-test.sh --build'
-      }
-    }
   }
 }

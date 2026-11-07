@@ -25,12 +25,6 @@ jobs:
         with:
           persist-credentials: false
       - run: ./mvnw -B verify
-      - name: generator (template only)
-        if: hashFiles('tests/new-server-test.sh') != ''
-        run: |
-          apt-get update -qq && apt-get install -y -qq git python3 unzip perl
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          tests/new-server-test.sh --build
   verify-main:
     if: github.event_name == 'push'
     runs-on: ubuntu-24.04
@@ -44,12 +38,6 @@ jobs:
         with:
           persist-credentials: false
       - run: ./mvnw -B verify
-      - name: generator (template only)
-        if: hashFiles('tests/new-server-test.sh') != ''
-        run: |
-          apt-get update -qq && apt-get install -y -qq git python3 unzip perl
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          tests/new-server-test.sh --build
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: build

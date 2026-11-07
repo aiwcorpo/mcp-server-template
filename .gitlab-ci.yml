@@ -1,7 +1,6 @@
 # Merge request pipelines run code nobody has reviewed yet, so they get no secret and no Docker socket.
 stages:
   - verify
-  - generator
 
 default:
   image: maven:3.9.12-eclipse-temurin-25@sha256:4f82a03a7d6679281952d628131299b1be88d7030a49c6a2b7d2ba2642e44e3e
@@ -26,15 +25,3 @@ verify:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-
-generator:
-  stage: generator
-  script:
-    - apt-get update -qq && apt-get install -y -qq git python3 unzip perl
-    - git config --global --add safe.directory "$CI_PROJECT_DIR"
-    - tests/new-server-test.sh --build
-  rules:
-    - exists: [tests/new-server-test.sh]
-      if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - exists: [tests/new-server-test.sh]
-      if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

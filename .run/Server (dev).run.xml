@@ -1,7 +1,7 @@
 <component name="ProjectRunConfigurationManager">
   <!--
-    The dev profile on 127.0.0.1:8080, looking for LocalGateway on port 18445 and the stub backend on 18081 (the defaults of
-    application-dev.yml). Refused in a container or under systemd; run it on the workstation.
+    The dev profile on 127.0.0.1:8080, looking for LocalGateway on port 18445 and the backend system on 18081 (the defaults of
+    application-dev.yml; MCP_EXAMPLE_URL overrides the latter). Refused in a container or under systemd; run it on the workstation.
   -->
   <configuration default="false" name="Server (dev)" type="Application" factoryName="Application">
     <option name="MAIN_CLASS_NAME" value="pl.aiwcorpo.mcp.example.app.McpServerApplication" />

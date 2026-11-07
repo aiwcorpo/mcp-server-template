@@ -44,7 +44,6 @@
         <module>mcp-integration</module>
         <module>mcp-tools</module>
         <module>mcp-app</module>
-        <module>mcp-stub-backend</module>
     </modules>
 
     <properties>

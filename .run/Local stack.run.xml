@@ -1,8 +1,0 @@
-<component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Local stack" type="CompoundRunConfigurationType">
-    <toRun name="Stub backend" type="Application" />
-    <toRun name="LocalGateway" type="JarApplication" />
-    <toRun name="Server (dev)" type="Application" />
-    <method v="2" />
-  </configuration>
-</component>

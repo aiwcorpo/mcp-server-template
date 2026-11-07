@@ -76,18 +76,20 @@ Example: a server for the system `notes`.
     The test builds the resources as the resolver would (declared attributes, parent, scopes) and covers allowed and denied calls, a scope
     that covers the record and one that does not, restricted data in any spelling, the service account outside the user's scopes, a client
     the gateway does not allow and an emergency override. Write the same kind of cases for each policy you add. `./mvnw verify` runs
-    them, the tool tests of `mcp-app` over HTTP and the stub backend.
+    them, and the tool tests of `mcp-app` over HTTP against an in-process stub backend.
 
-5. **Run it locally** with LocalGateway, from IntelliJ: open the project and start the run configuration `Local stack` (in `.run/`). It
-   starts `Stub backend` (port 18081), `LocalGateway` (the gateway's stand-in: test JWKS and policy data from your policies and
-   `local/scope-mapping.json`, port 18500 for the MCP client) and `Server (dev)` (127.0.0.1:8080, dev profile). Connect an MCP client
-   (MCP Inspector, Claude Code) to `http://127.0.0.1:18500/mcp` with the header `Authorization: Bearer any-token`; the stub accepts any
-   token and `Bearer expired-1` answers 401 like a revoked one. The local user is in the groups `mcp-notes-read`, `-write` and
-   `-destructive`, and `local/scope-mapping.json` maps the write group to the projects `ABC` and `DEF`. Without IntelliJ, see "Run locally".
+5. **Run it locally** with LocalGateway, from IntelliJ: open the project and start the run configurations `LocalGateway` (the gateway's
+   stand-in: test JWKS and policy data from your policies and `local/scope-mapping.json`, port 18500 for the MCP client) and
+   `Server (dev)` (127.0.0.1:8080, dev profile) from `.run/`. The server needs the system at `MCP_NOTES_URL` (default
+   `http://localhost:18081`); a real one, or the stub backend of the `mcp-e2e` repository (`stub-backend/`, which accepts any token
+   and answers 401 to one that starts with `expired`). Connect an MCP client (MCP Inspector, Claude Code) to
+   `http://127.0.0.1:18500/mcp` with the header `Authorization: Bearer any-token`. The local user is in the groups `mcp-notes-read`,
+   `-write` and `-destructive`, and `local/scope-mapping.json` maps the write group to the projects `ABC` and `DEF`. Without IntelliJ,
+   see "Run locally".
 
 6. **Add it to the platform.** Nothing restarts; the full calls are in [`deploy/README.md`](deploy/README.md).
     1. Broker: add the system `notes` through the admin API or the portal (`PUT /v1/admin/systems/notes`): adapter `generic-rest`,
-       type `user-secret`, with `whoami` (`path` and `usernameField`, `/api/me` and `username` for the stub) so the broker checks a token
+       type `user-secret`, with `whoami` (`path` and `usernameField`, for example `/api/me` and `username`) so the broker checks a token
        when it is stored and records the backend user; without `whoami` it stores the token unverified.
     2. Gateway: add the server `mcp-notes` for it through the admin API or the portal (`POST /admin/v1/servers`).
     3. Deploy the server (`deploy/`). Its certificate is `CN=mcp-notes`, SAN `mcp-notes.internal`, `serverAuth` and `clientAuth`.
@@ -138,12 +140,12 @@ Rules behind these patterns:
 ```bash
 export JAVA_HOME="$(/usr/libexec/java_home -v 25)"   # macOS; on Linux the JDK 25 directory
 ./mvnw -B verify     # jar: mcp-app/target/mcp-example.jar, manifest: mcp-app/target/mcp-manifest.json
-tests/new-server-test.sh --build    # generates servers and builds each result
 ```
 
 Tests need no Docker and no platform environment. `TestGateway` from `mcp-platform-test` signs internal JWTs, serves the JWKS and the
 policy data (with the scope mapping of `SampleScope`), and `StubBackend` (a test class) imitates the API of the system, including its
-faults. The GitHub, GitLab and Jenkins files run `./mvnw -B verify` and then `tests/new-server-test.sh --build`.
+faults. The GitHub, GitLab and Jenkins files run `./mvnw -B verify`. The generator `new-server.sh` is tested in the `mcp-e2e`
+repository (`tests/new-server-test.sh`, which expects this template in `../mcp-server-template`).
 
 The starter version is the property `mcp-platform.version` in `pom.xml`; the BOM pins the contracts. `new-server.sh` reads the
 version from there (the `.run/LocalGateway.run.xml` file names the jar of the same version). Platform artifacts come from Maven Central
@@ -154,8 +156,7 @@ with the gateway: read-only tools are approved automatically, and new or changed
 the policies, wait for an administrator.
 
 Modules: `mcp-core` (domain and ports), `mcp-application` (use cases), `mcp-integration` (adapter, resolver, version probe),
-`mcp-tools` (MCP tools and their errors), `mcp-app` (bootstrap, the policies, the single jar, end-to-end tests), `mcp-stub-backend` (the
-stand-in for the system, a separate small jar).
+`mcp-tools` (MCP tools and their errors), `mcp-app` (bootstrap, the policies, the single jar, end-to-end tests).
 
 ## Configuration
 
@@ -188,7 +189,7 @@ The starter refuses it in a container or under systemd, so run it on the worksta
 same from a shell, after `./mvnw verify`:
 
 ```bash
-java -jar mcp-stub-backend/target/mcp-stub-backend.jar &                                  # 127.0.0.1:18081
+# the system on 127.0.0.1:18081 (or MCP_EXAMPLE_URL), for a first try the stub of mcp-e2e/stub-backend
 java -jar ~/.m2/repository/pl/aiwcorpo/mcp/mcp-platform-test/4.0.0/mcp-platform-test-4.0.0-local-gateway.jar \
   --server mcp-example --jwks-port 18445 --policies-dir mcp-app/src/main/resources/mcp/policies \
   --scope-mapping local/scope-mapping.json --env-file local/local-gateway.env &           # MCP endpoint 127.0.0.1:18500
@@ -206,7 +207,7 @@ server decides at once; `--scope-mapping` takes your own mapping, `--groups` the
 signed with the published test keys and needs no client certificate. For that reason it listens on loopback only; never put
 `SPRING_PROFILES_ACTIVE=dev` into an `.env` file, a systemd unit or an image.
 
-Against a real system instead of the stub: `MCP_EXAMPLE_URL=https://...` in the environment of the server and a real token in the
+Against a real system: `MCP_EXAMPLE_URL=https://...` in the environment of the server and a real token in the
 `Authorization` header of the client. A platform stack in containers (the `devstack` profile) is described in the README of
 `mcp-starter-lib`.
 

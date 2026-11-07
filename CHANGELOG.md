@@ -2,6 +2,13 @@
 
 Versions follow SemVer, newest first.
 
+## Unreleased
+
+- Removed `mcp-stub-backend` (module, `Stub backend` and `Local stack` run configurations, the `stub` profile of `deploy/compose.yaml`) and
+  `tests/new-server-test.sh`: test material does not belong in the repository users copy. Both are in `mcp-e2e` now (`stub-backend/`
+  and `tests/new-server-test.sh`, which runs against `../mcp-server-template`). The `generator` job of the three CI files is gone with the
+  test. In-process tests keep their own `StubBackend` in `mcp-app`.
+
 ## 2.0.0 - 2026-11-06
 
 Dynamic servers: built on `mcp-platform-starter` 4.0.0 (contracts 7.0.0). The template is the reference for a new server, which is added

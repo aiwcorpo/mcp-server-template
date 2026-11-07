@@ -42,7 +42,7 @@ Example: a server for the system `notes`.
     | System id (`example` -> `notes`) | `spring.application.name`, `server-id: mcp-notes` and `manifest.internal-url` in `mcp-app/src/main/resources/application.yml` and `application-dev.yml`; the `notes.backend.*` and `notes.writes-on-unknown-version` properties and the variables `MCP_NOTES_URL`, `MCP_NOTES_SSL_BUNDLE`, `MCP_NOTES_ALLOW_PLAIN_HTTP`, `MCP_NOTES_WRITES_ON_UNKNOWN_VERSION`; the groups `mcp-notes-read`, `-write`, `-destructive` in the policies and the tests; the certificate names `mcp-notes` and `mcp-notes.internal` in `deploy/` |
     | Cedar namespace (`Example` -> `Notes`) | `namespace Notes` in `schema.cedarschema`; `Notes::Project` and `Notes::Record` in `resource-types.json` and `ExampleResourceModel` (`NotesResourceModel`); `Notes::Action::"read"` in the `*.cedar` files; the scope ids `Notes::Project/ABC` in `local/scope-mapping.json` and the tests; the ids of the policies (`notes-read`) |
     | Java | the package `pl.aiwcorpo.mcp.example` (directories included) -> `pl.aiwcorpo.mcp.notes`; the class prefix `Example` (`ExampleTool`, `ExampleRecordResolver`, `ExamplePolicyTest`, ...) -> `Notes`; the Maven groupId `pl.aiwcorpo.mcp.notes`, the parent artifact `mcp-notes-parent`, the jar `mcp-notes.jar` |
-    | Deployment and CI | `deploy/systemd/mcp-notes.service` and `.env.template`, `deploy/compose.yaml` (service, image `mcp-server-notes`, `MCP_NOTES_VERSION`), `deploy/server.env`, the scripts in `deploy/scripts/`; `Dockerfile` and `ci/run.sh` (jar and image names); `.github/workflows/release.yml`; `NOTICE`; the `--server mcp-notes` of `.run/LocalGateway.run.xml` |
+    | Deployment and CI | `deploy/systemd/mcp-notes.service` and `.env.template`, `deploy/compose.yaml` (service, image `mcp-server-notes`, `MCP_NOTES_VERSION`), `deploy/server.env`, `Dockerfile` (jar and image names); `.github/workflows/release.yml`; `NOTICE`; the `--server mcp-notes` of `.run/LocalGateway.run.xml` |
 
     The Cedar namespace is the system id with a capital letter. If it should read differently (`NotesApp`), change it in the files of the
     second row only; the starter takes the namespace from `resource-types.json` and the groups and the system id do not depend on it.
@@ -137,14 +137,13 @@ Rules behind these patterns:
 
 ```bash
 export JAVA_HOME="$(/usr/libexec/java_home -v 25)"   # macOS; on Linux the JDK 25 directory
-./mvnw verify        # jar: mcp-app/target/mcp-example.jar, manifest: mcp-app/target/mcp-manifest.json
-make ci              # ci/run.sh verify; the same script runs in CI
+./mvnw -B verify     # jar: mcp-app/target/mcp-example.jar, manifest: mcp-app/target/mcp-manifest.json
 tests/new-server-test.sh --build    # generates servers and builds each result
 ```
 
 Tests need no Docker and no platform environment. `TestGateway` from `mcp-platform-test` signs internal JWTs, serves the JWKS and the
 policy data (with the scope mapping of `SampleScope`), and `StubBackend` (a test class) imitates the API of the system, including its
-faults. `ci/run.sh generator` runs the generator test in CI.
+faults. The GitHub, GitLab and Jenkins files run `./mvnw -B verify` and then `tests/new-server-test.sh --build`.
 
 The starter version is the property `mcp-platform.version` in `pom.xml`; the BOM pins the contracts. `new-server.sh` reads the
 version from there (the `.run/LocalGateway.run.xml` file names the jar of the same version). Platform artifacts come from Maven Central
@@ -178,8 +177,8 @@ Also available: `MCP_GATEWAY_TLS_NAME` (the name the gateway's certificate carri
 own and cursors do not survive a restart), `MCP_EXAMPLE_SSL_BUNDLE`, `MCP_EXAMPLE_WRITES_ON_UNKNOWN_VERSION`, `MCP_GATEWAY_ISSUER`,
 `MCP_PORT` (`8443`), `MCP_BIND`, and `MCP_EXAMPLE_ALLOW_PLAIN_HTTP`, which allows `http` outside `dev` and exists only for the mocks of a
 test stack. `MCP_ACCEPTED_CREDENTIAL_TYPES` lists the credential types the server accepts; the first one is the default and must match
-what the gateway and the broker have for the system, otherwise registration fails with `credential_type_mismatch`. There is no
-`MCP_POLICY_*`: the policies are in the jar and the data comes from the gateway. The MCP endpoint is `/mcp`; without a JWT only
+what the gateway and the broker have for the system, otherwise registration fails with `credential_type_mismatch`. The policies are in the jar and the data
+comes from the gateway. The MCP endpoint is `/mcp`; without a JWT only
 `/actuator/health` answers.
 
 ## Run locally

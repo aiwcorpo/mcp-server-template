@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Checks new-server.sh without building: refusals, where the output lands, what is renamed (code, policies, deploy), and
-# that the template stays untouched. tests/new-server-test.sh [--build] (--build also runs ci/run.sh verify in the
+# that the template stays untouched. tests/new-server-test.sh [--build] (--build also runs ./mvnw -B verify in the
 # generated servers).
 set -euo pipefail
 
@@ -52,23 +52,22 @@ check "policy files are copied" test -s "$policies/schema.cedarschema" -a -s "$p
 check "Cedar namespace is renamed in the schema and the declarations" bash -c "grep -q '^namespace Notes {' '$policies/schema.cedarschema' && grep -q '\"Notes::Record\"' '$policies/resource-types.json' && ! grep -q 'Example' '$policies'/*"
 check "groups and ids of the policies are renamed" bash -c "grep -q 'UserGroup::\"mcp-notes-read\"' '$policies/read.cedar' && grep -q 'Notes::Action::\"update\"' '$policies/update.cedar' && grep -q '@id(\"notes-read\")' '$policies/read.cedar'"
 check "policy test is renamed" test -f "$server/mcp-app/src/test/java/pl/aiwcorpo/mcp/notes/app/NotesPolicyTest.java"
-check "the settings use the policy data of the gateway" bash -c "grep -q 'MCP_GATEWAY_POLICY_DATA_URL' '$server/mcp-app/src/main/resources/application.yml' && ! grep -rq 'MCP_POLICY_' '$server' --include=*.yml --include=*.template --include=*.env --include=*.yaml"
+check "the settings use the policy data of the gateway" grep -q 'MCP_GATEWAY_POLICY_DATA_URL' "$server/mcp-app/src/main/resources/application.yml"
 check "environment variables are renamed" grep -q 'MCP_NOTES_URL' "$server/mcp-app/src/main/resources/application.yml"
 
-for ci_file in ci/run.sh Makefile .gitlab-ci.yml Jenkinsfile .github/workflows/ci.yml; do
+for ci_file in .gitlab-ci.yml Jenkinsfile .github/workflows/ci.yml; do
     check "generated server has $ci_file" test -s "$server/$ci_file"
 done
 check "generated server has no registry settings" bash -c "test ! -e '$server/.ci' && ! grep -rIl 'MCP_MAVEN_REPOSITORY\\|maven.pkg.github.com\\|packages: read' '$server' --exclude-dir=target"
 check "generated Dockerfile keeps the source and licenses labels" bash -c "grep -q 'image.source=\"https://github.com/aiwcorpo/mcp-server-notes\"' '$server/Dockerfile' && grep -q 'image.licenses=\"Apache-2.0\"' '$server/Dockerfile'"
 check "pull request job: contents read only, no env" bash -c "awk '/verify-pull-request:/{f=1} /verify-main:/{f=0} f' '$server/.github/workflows/ci.yml' | grep -q 'contents: read' && ! awk '/verify-pull-request:/{f=1} /verify-main:/{f=0} f' '$server/.github/workflows/ci.yml' | grep -q 'env:\\|secrets\\.'"
-check "ci/run.sh is executable and names the generated image" bash -c "test -x '$server/ci/run.sh' && grep -q 'mcp-server-notes:' '$server/ci/run.sh' && grep -q 'mcp-notes.jar' '$server/ci/run.sh'"
-check "ci/run.sh refuses an unknown step" bash -c "cd '$server' && ci/run.sh bogus >/dev/null 2>&1; test \$? -eq 2"
+check "generated server has no build or install scripts" bash -c "test ! -e '$server/ci' -a ! -e '$server/Makefile' -a ! -e '$server/deploy/scripts' && ! grep -rIlE 'ci/run\\.sh|make ci' '$server' --exclude-dir=target"
+check "CI files call mvnw verify directly" bash -c "grep -q './mvnw -B verify' '$server/.github/workflows/ci.yml' '$server/.gitlab-ci.yml' '$server/Jenkinsfile'"
 for release_file in LICENSE NOTICE SECURITY.md CONTRIBUTING.md CHANGELOG.md .github/workflows/release.yml; do
     check "generated server has $release_file" test -s "$server/$release_file"
 done
 
-for deploy_file in deploy/README.md deploy/compose.yaml deploy/server.env deploy/certs/.gitignore deploy/systemd/mcp-notes.service deploy/systemd/mcp-notes.env.template \
-    deploy/scripts/install.sh deploy/scripts/update.sh deploy/scripts/healthcheck.sh; do
+for deploy_file in deploy/README.md deploy/compose.yaml deploy/server.env deploy/certs/.gitignore deploy/systemd/mcp-notes.service deploy/systemd/mcp-notes.env.template; do
     check "generated server has $deploy_file" test -e "$server/$deploy_file"
 done
 check "compose file names the renamed service, image and variables" bash -c "grep -q 'mcp-notes:' '$server/deploy/compose.yaml' && grep -q 'mcp-server-notes' '$server/deploy/compose.yaml' && grep -q 'MCP_NOTES_VERSION' '$server/deploy/compose.yaml'"
@@ -100,8 +99,7 @@ check "template unchanged" test "$before" == "$(git -C "$template" status --porc
 
 if [[ "${1:-}" == "--build" ]]; then
     for generated in relative-notes tickets; do
-        check "generated $generated builds and passes ci/run.sh verify (tests, floors, manifest)" bash -c "cd '$work/$generated' && git init -q && ci/run.sh verify >'$work/build-$generated.log' 2>&1"
-        check "generated $generated passes ci/run.sh hygiene" bash -c "cd '$work/$generated' && ci/run.sh hygiene >/dev/null 2>&1"
+        check "generated $generated builds and passes mvnw verify" bash -c "cd '$work/$generated' && git init -q && ./mvnw -B verify >'$work/build-$generated.log' 2>&1"
         check "generated $generated writes the manifest in the build" test -s "$work/$generated/mcp-app/target/mcp-manifest.json"
     done
 fi

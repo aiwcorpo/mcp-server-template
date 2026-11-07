@@ -155,8 +155,7 @@ JDK 25 is required; no container runtime and no running $system are needed, the 
 
 \`\`\`bash
 export JAVA_HOME="\$(/usr/libexec/java_home -v 25)"   # macOS; on Linux the JDK 25 directory
-./mvnw verify        # jar: mcp-app/target/mcp-$system.jar and the manifest mcp-app/target/mcp-manifest.json
-make ci              # ci/run.sh verify, the entry point shared by the GitLab, Jenkins and GitHub wrappers
+./mvnw -B verify     # jar: mcp-app/target/mcp-$system.jar and the manifest mcp-app/target/mcp-manifest.json
 \`\`\`
 
 ## Developing
@@ -203,7 +202,6 @@ cat <<EOF
 Generated mcp-$system in $target
 Next:
   cd $target && git init
-  ./mvnw verify          # JDK 25; builds and runs the tests against TestGateway and a stub backend
-  make ci                # the same through ci/run.sh, the single entry point of the GitLab, Jenkins and GitHub wrappers
+  ./mvnw -B verify       # JDK 25; builds and runs the tests against TestGateway and a stub backend
 Then replace the sample record domain and the policies with the real ones (README of the template, "Create a new MCP server").
 EOF

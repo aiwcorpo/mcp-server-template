@@ -118,13 +118,29 @@ policies waits in `pending_approval` after the pipeline registers it, as above.
 
 ## Virtual machine without Docker
 
-`systemd/` has a unit and its environment file for the jar, `scripts/` the installation; step by step in the
+`systemd/` has a unit and its environment file for the jar; step by step in the
 [VM installation guide](https://github.com/aiwcorpo/mcp-docs/blob/main/docs/operator/install-vm.md) of `mcp-docs`. The environment
 variables are the ones of `server.env`, with the stores at `/etc/mcp-example/tls`.
 
 ```bash
-sudo scripts/install.sh mcp-example.jar     # account, directories, unit; then fill /etc/mcp-example/mcp-example.env
-sudo systemctl enable --now mcp-example
-scripts/healthcheck.sh https://mcp-example.internal:8443 ca.crt probe.crt probe.key   # health over mTLS
-sudo scripts/update.sh new-mcp-example.jar  # replaces the jar, keeps the old one for rollback
+sudo useradd --system --no-create-home --shell /usr/sbin/nologin mcp
+sudo install -d -o root -g mcp -m 0750 /opt/mcp-example /etc/mcp-example /etc/mcp-example/tls
+sudo install -o root -g mcp -m 0640 mcp-example.jar /opt/mcp-example/mcp-example.jar
+sudo install -o root -g mcp -m 0640 systemd/mcp-example.env.template /etc/mcp-example/mcp-example.env   # then fill it in
+sudo install -m 0644 systemd/mcp-example.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now mcp-example
+```
+
+Health over mTLS (the probe certificate comes from the same CA):
+
+```bash
+curl -fsS --cacert ca.crt --cert probe.crt --key probe.key https://mcp-example.internal:8443/actuator/health
+```
+
+Update: keep the old jar for a rollback, replace it and restart.
+
+```bash
+sudo cp -a /opt/mcp-example/mcp-example.jar /opt/mcp-example/mcp-example.jar.bak
+sudo install -o root -g mcp -m 0640 new-mcp-example.jar /opt/mcp-example/mcp-example.jar
+sudo systemctl restart mcp-example
 ```

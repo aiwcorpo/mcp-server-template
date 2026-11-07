@@ -11,7 +11,7 @@
 #   example / Example / EXAMPLE -> <system> / <System> / <SYSTEM>
 # The Cedar namespace is the Example form (Example::Record becomes <System>::Record) and the groups of the policies are
 # mcp-<system>-read and so on; everything else the policies need comes from the files in mcp/policies/, which are copied
-# and renamed like any other. Template-only files (this script, its test, README.md, STATUS.md, CHANGELOG.md) are not
+# and renamed like any other. Template-only files (this script, its test, README.md, CHANGELOG.md) are not
 # copied; the generated server gets a CHANGELOG.md and a short README.md of its own, both in English; the project version
 # is reset to 0.1.0-SNAPSHOT. LICENSE is copied unchanged, NOTICE, SECURITY.md, CONTRIBUTING.md and the release workflow
 # like the rest. Afterwards no "example" may remain; on any failure the target directory is removed.
@@ -114,7 +114,7 @@ mkdir "$target"
 while IFS= read -r file; do
     [[ -f "$file" ]] || continue
     case "$file" in
-        new-server.sh | tests/new-server-test.sh | README.md | STATUS.md | CHANGELOG.md) continue ;;
+        new-server.sh | tests/new-server-test.sh | README.md | CHANGELOG.md) continue ;;
     esac
     destination="$target/$(printf '%s' "$file" | rename)"
     mkdir -p "$(dirname "$destination")"

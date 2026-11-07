@@ -32,7 +32,7 @@ Example: a server for the system `notes`.
     The system id is lower case letters and digits, 2 to 31 characters, and not one the contracts reserve (`gateway`, `broker`,
     `portal`, `admin`, ...). The script copies the files git tracks, renames, resets the version to `0.1.0-SNAPSHOT`, writes a short
     README and CHANGELOG of its own and fails if the word `example` is left anywhere. The target path must not exist and must be outside
-    the template. `new-server.sh`, its test, this README, `STATUS.md` and the template's `CHANGELOG.md` are not copied.
+    the template. `new-server.sh`, its test, this README and the template's `CHANGELOG.md` are not copied.
 
 2. **Rename.** Everything below is what the script changes, so a copy made by hand changes the same places (`grep -rIil example .` lists
    them; `LICENSE` stays as it is).

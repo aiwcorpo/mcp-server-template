@@ -43,7 +43,7 @@ check "nothing left after refusals" test -z "$(ls "$work" | grep -v '^exists$')"
 server="$work/relative-notes"
 check "relative target lands in the caller's directory" test -f "$server/pom.xml"
 check "relative target used twice is refused" bash -c "cd '$work' && ! '$template/new-server.sh' tickets relative-notes >/dev/null 2>&1"
-check "no template-only files" test ! -e "$server/new-server.sh" -a ! -e "$server/STATUS.md" -a ! -e "$server/tests/new-server-test.sh"
+check "no template-only files" test ! -e "$server/new-server.sh" -a ! -e "$server/tests/new-server-test.sh"
 check "no profiles directory" test ! -e "$server/profiles"
 check "LICENSE is copied unchanged" cmp -s "$template/LICENSE" "$server/LICENSE"
 

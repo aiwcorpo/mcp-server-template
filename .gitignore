@@ -18,3 +18,4 @@ target/
 *.log
 .m2/
 local/local-gateway.env
+STATUS.md

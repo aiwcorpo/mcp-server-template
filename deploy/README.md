@@ -10,8 +10,8 @@ second server is its own repository and its own directory.
 - From your internal CA: a certificate for the server with CN `mcp-example`, SAN `mcp-example.internal`, and both `serverAuth` and
   `clientAuth` in the extended key usage (the server answers the gateway as a server and asks it for the policy data as a client). The
   gateway pins the SAN and the CN, so the names are not configurable. Plus the CA certificate.
-- The addresses of the gateway's internal TLS port (8443), of the portal and of the backend system, and a Redis with an account for the
-  server (ACL user `mcp-example`, keys `jti:mcp-example:*`, command `SET`).
+- The addresses of the gateway's internal TLS port (8443), of the portal and of the backend system.
+- Redis: `compose.yaml` starts one next to the server (service `redis`, reachable from the server only, default user off, one ACL account that may run `SET` on its own `jti:` keys). `MCP_REDIS_PASSWORD` in the env file is its password: choose one (`openssl rand -hex 24`). For one Redis shared by several instances, remove the service and set `MCP_REDIS_HOST` in the compose file.
 
 ## Install
 

@@ -1,7 +1,7 @@
 <component name="ProjectRunConfigurationManager">
   <!--
-    Stands in for the gateway: test JWKS, policy data (the policies of mcp-app and .run/scope-mapping.json) and the
-    forwarding of /mcp with your Authorization header as the credential of the backend. The jar comes from ~/.m2, the version
+    Stands in for the gateway: test JWKS, the push of policy data to the server on 127.0.0.1:8080 (the policies of mcp-app and
+    .run/scope-mapping.json) and the forwarding of /mcp with your Authorization header as the credential of the backend. The jar comes from ~/.m2, the version
     is mcp-platform.version of pom.xml. Writes local-gateway.env in the project directory, which is not needed when the server runs from here.
   -->
   <configuration default="false" name="LocalGateway" type="JarApplication">

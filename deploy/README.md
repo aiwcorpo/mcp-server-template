@@ -44,6 +44,27 @@ certificate, pulls the manifest and pushes the policy data itself.
 Until the gateway has pushed policy data (a fresh start, or a restart), the server answers `tools/call` with `409 policy_data_stale`, which the
 gateway handles by pushing and repeating the call. The gateway pushes after every change and every minute, so the state lasts seconds.
 
+## The platform certificate comes from a company CA
+
+`MCP_GATEWAY_JWKS_URI` is an `https` address. When the certificate of the platform is signed by a CA that the JVM does not know (a company
+CA), the server cannot read the key set and does not start. Put that CA in a truststore, keep it in `certs/` (the directory is mounted
+read-only at `/certs`) and point the JVM at it with `JAVA_TOOL_OPTIONS` in `server.env`:
+
+```bash
+keytool -importcert -noprompt -alias company-ca -file company-ca.pem \
+  -keystore certs/truststore.p12 -storetype PKCS12 -storepass changeit
+```
+
+```
+JAVA_TOOL_OPTIONS=-Djavax.net.ssl.trustStore=/certs/truststore.p12 -Djavax.net.ssl.trustStoreType=PKCS12 -Djavax.net.ssl.trustStorePassword=changeit
+```
+
+The password only guards the integrity of the file and is not a secret, but the JVM prints `JAVA_TOOL_OPTIONS` to its log at start. The JVM
+reads no certificate from a store without the password. `javax.net.ssl.trustStore` replaces the default truststore of the JVM, so the CAs of
+public sites stop being trusted: import every CA the server needs (for example the one of the backend system), or copy
+`$JAVA_HOME/lib/security/cacerts`, add the company CA to the copy and point the option at the copy. On a virtual machine the same line goes
+into the environment file of the unit, with the path of the file on the host.
+
 ## Add the server to the platform
 
 This part is for the operator of the platform. Nothing restarts: the gateway and the broker read the change within a few seconds. The portal
@@ -71,8 +92,9 @@ This part is for the operator of the platform. Nothing restarts: the gateway and
     - any other certificate, a self-signed one included, is pinned (`pinned`) by its fingerprint: when the server later presents another
       certificate it becomes unreachable, and the portal shows the new fingerprint for approval.
 4. Approve the policies (`POST /admin/v1/registry/servers/mcp-example/policies/approve` with the pending `policiesHash`) and the tools, in the portal.
-   Every tool waits for an administrator, the read-only ones too. Every later change of a policy, a resource type or a tool puts the server back in
-   `pending_approval` until it is approved again.
+   Every tool waits for an administrator, the read-only ones too. A later change of a policy or a resource type sends the policies of the server back to approval
+   (`policiesStatus` is `pending_approval`) while the connection status stays `connected`; a changed tool waits on its own. The server refuses
+   calls with `policies_differ` until the policies are approved again.
 5. In the identity provider, put the users in the groups `mcp-example-read`, `mcp-example-write` and `mcp-example-destructive`. Which
    group may change which resources is the scope mapping (Administration, Scope mapping): `mcp-example-proj-ABC` to
    `Example::Project/ABC`, for instance.
@@ -115,7 +137,8 @@ MCP_REGISTRY=artifactory.corp.test/mcp
 ## Upgrade
 
 Change `MCP_EXAMPLE_VERSION` in `.env` (or the default in `compose.yaml`) and run `docker compose up -d`. The state volume keeps the certificate, so
-the connection stays approved. A new version with other policies or tools waits in `pending_approval`: the gateway pulls the manifest within a minute
+the connection stays approved. A new version with other policies or tools waits for approval (the policies show `policiesStatus` `pending_approval`, the connection stays
+`connected`): the gateway pulls the manifest within a minute
 and the administrator approves the change, as above.
 
 ## Virtual machine without Docker

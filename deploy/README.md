@@ -1,51 +1,53 @@
 # Install the server
 
 The server of the system `example` on one Linux host, behind the gateway. Compose is the default; a unit for a virtual machine without
-Docker is at the end. The gateway, the credential broker and the identity provider run elsewhere. This directory is for one server: a
-second server is its own repository and its own directory.
+Docker is at the end. The gateway, the credential broker and the identity provider run elsewhere, and the host of the server may be
+another machine than the platform. This directory is for one server: a second server is its own repository and its own directory.
+
+The server author starts the server. The platform operator enters its address in the portal and approves the connection. Nobody issues a
+certificate for the server, creates a token or registers anything from a pipeline: the gateway connects to the address, reads the
+certificate, pulls the manifest and pushes the policy data itself.
 
 ## Prerequisites
 
 - Linux, Docker Engine with Compose v2.20 or newer, 1 GiB of memory.
-- From your internal CA: a certificate for the server with CN `mcp-example`, SAN `mcp-example.internal`, and both `serverAuth` and
-  `clientAuth` in the extended key usage (the server answers the gateway as a server and asks it for the policy data as a client). The
-  gateway pins the SAN and the CN, so the names are not configurable. Plus the CA certificate.
-- The addresses of the gateway's internal TLS port (8443), of the portal and of the backend system.
-- Redis: `compose.yaml` starts one next to the server (service `redis`, reachable from the server only, default user off, one ACL account that may run `SET` on its own `jti:` keys). `MCP_REDIS_PASSWORD` in the env file is its password: choose one (`openssl rand -hex 24`). For one Redis shared by several instances, remove the service and set `MCP_REDIS_HOST` in the compose file.
+- The public key set of the gateway, `https://<domain of the platform>/.well-known/mcp-jwks.json` (the operator tells you the domain). The
+  host must reach that domain on port 443, and the platform must reach the port of the server (8443 by default).
+- The addresses of the portal page for connecting an account and of the backend system.
+- A certificate is optional. Without one the server generates a self-signed certificate on its first start and keeps it in the state
+  volume. With your own (PEM files or a PKCS12 keystore, from any CA, signed or not) put it in `certs/`; see `server.env`.
 
 ## Install
 
-1. Put two files in `certs/`:
-
-    | File | What |
-    | --- | --- |
-    | `keystore.p12` | the server certificate and its key |
-    | `truststore.p12` | the internal CA certificate |
-
-    Both stores use one password. A request for the certificate and the stores, from PEM files:
-
-    ```bash
-    openssl req -new -newkey rsa:3072 -nodes -keyout server.key -subj "/CN=mcp-example" -out server.csr
-    printf 'subjectAltName = DNS:mcp-example.internal\nextendedKeyUsage = serverAuth, clientAuth\n' > server.ext   # for your CA to apply
-    openssl pkcs12 -export -inkey server.key -in server.crt -certfile ca.crt -name mcp-example -out certs/keystore.p12
-    keytool -importcert -noprompt -alias ca -file ca.crt -keystore certs/truststore.p12 -storetype PKCS12
-    ```
-
-2. Fill in the empty values in `server.env`.
-3. Get the image: `docker compose pull`, or after `./mvnw verify` in the repository `docker compose build`.
-4. Start:
+1. Fill in the empty values in `server.env`: `MCP_GATEWAY_JWKS_URI`, `MCP_CONNECT_URL`, `MCP_EXAMPLE_URL`. The other lines are optional and
+   commented out.
+2. Get the image: `docker compose pull`, or after `./mvnw verify` in the repository `docker compose build`.
+3. Start:
 
     ```bash
     docker compose up -d
+    docker compose logs mcp-example | grep event=tls_certificate
     ```
 
-The server does not start with a missing setting and says which. Without data from the gateway (it is down, or this server is not
-registered there yet) it starts and refuses every call as `upstream_unavailable` until the data arrives; it asks again every few seconds.
+    The server does not start with a missing setting and says which. The log line has the fingerprint of the certificate it serves:
+
+    ```
+    event=tls_certificate source=generated fingerprint=sha256:9f2c...e1 detail="..."
+    ```
+
+    Keep it: the operator compares it with the one the portal shows before approving the connection. `source` is `generated`, `pem` or `keystore`.
+    The certificate is generated once and reused at every start, as long as the state volume (`state`, mounted at `/var/lib/mcp/state`) stays;
+    a new volume is a new certificate and a new fingerprint to approve. With `docker compose down -v` the volume is gone.
+
+4. Give the operator the address: `https://<host>:8443/mcp`, with the host name or address the platform reaches, and the fingerprint.
+
+Until the gateway has pushed policy data (a fresh start, or a restart), the server answers `tools/call` with `409 policy_data_stale`, which the
+gateway handles by pushing and repeating the call. The gateway pushes after every change and every minute, so the state lasts seconds.
 
 ## Add the server to the platform
 
-Nothing restarts: the gateway and the broker read the change within a few seconds. The portal (Administration) does the same as the
-calls below.
+This part is for the operator of the platform. Nothing restarts: the gateway and the broker read the change within a few seconds. The portal
+(Administration) does the same as the calls.
 
 1. Broker, system: `PUT /v1/admin/systems/example` (`baseUrl`, `adapter`, `supportedTypes`, `defaultType`, `secretScheme`, OAuth client where
    the type needs one).
@@ -59,23 +61,19 @@ calls below.
     `whoami` is the path the broker calls with the user's token and the field of the answer that holds the user name: the token is then
     checked when it is stored and the backend user is recorded. Without `whoami` the broker stores the token unverified.
 
-2. Gateway, server: `POST /admin/v1/servers`. The `serverId` is `mcp-example`; the credential agrees with the broker and with
-   `MCP_ACCEPTED_CREDENTIAL_TYPES`.
-
-    ```bash
-    curl --cert bff.crt --key bff.key --cacert ca.crt -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
-      https://mcp-gateway.internal:8443/admin/v1/servers -d '{"serverId":"mcp-example","system":"example",
-      "internalUrl":"https://mcp-example.internal:8443/mcp","credential":{"required":true,"acceptedTypes":["user-secret"],"type":"user-secret"}}'
-    ```
-
-3. Deploy the server (this directory). It fetches its policy data at once.
-4. The pipeline registers the manifest of the reviewed commit (`mcp-app/target/mcp-manifest.json`, the artifact of the build) with the
-   certificate `mcp-registry-ci-mcp-example`: `PUT /admin/v1/registry/servers/mcp-example`. Tools that only read are approved by that
-   call. Until the policies are approved the server has no tools for anyone.
-5. An administrator approves the policies (`POST /admin/v1/registry/servers/mcp-example/policies/approve` with the pending
-   `policiesHash`) and the `UPDATE` and `DESTRUCTIVE` tools, in the portal. Every later change of a policy or a resource type puts the
-   server back in `pending_approval` until it is approved again.
-6. In the identity provider, put the users in the groups `mcp-example-read`, `mcp-example-write` and `mcp-example-destructive`. Which
+2. Portal, Administration, "Add server": the address `https://<host>:8443/mcp` (or `POST /admin/v1/servers` with `{"internalUrl": "..."}`, with
+   fresh MFA). The gateway connects, reads the certificate, pulls the manifest and shows a card with the system, the certificate (subject,
+   issuer, names, validity, fingerprint) and the tools and policies it found. The `serverId` is `mcp-example`, derived from the manifest; the credential
+   agrees with the broker and with `MCP_ACCEPTED_CREDENTIAL_TYPES`. A server whose address is loopback or link-local is refused, and `http` needs
+   `allowPlainHttp`, which only an administrator may set (for a server inside the Docker network of the platform, started with `MCP_PLAIN_HTTP=true`).
+3. Approve the connection (fresh MFA), after comparing the fingerprint on the card with the one in the server log:
+    - a certificate that a CA trusted by the gateway signed, for the name of the address, is trusted as `ca`, and a renewal needs nothing;
+    - any other certificate, a self-signed one included, is pinned (`pinned`) by its fingerprint: when the server later presents another
+      certificate it becomes unreachable, and the portal shows the new fingerprint for approval.
+4. Approve the policies (`POST /admin/v1/registry/servers/mcp-example/policies/approve` with the pending `policiesHash`) and the tools, in the portal.
+   Every tool waits for an administrator, the read-only ones too. Every later change of a policy, a resource type or a tool puts the server back in
+   `pending_approval` until it is approved again.
+5. In the identity provider, put the users in the groups `mcp-example-read`, `mcp-example-write` and `mcp-example-destructive`. Which
    group may change which resources is the scope mapping (Administration, Scope mapping): `mcp-example-proj-ABC` to
    `Example::Project/ABC`, for instance.
 
@@ -94,7 +92,17 @@ Nothing else restarts.
 
 | Port | For |
 | --- | --- |
-| 8443 | mTLS with the server certificate: the gateway's calls. `MCP_EXAMPLE_BIND` limits the address. |
+| 8443 | TLS, no client certificate: the gateway's calls, with an internal JWT on every path but `/actuator/health`. `MCP_EXAMPLE_BIND` limits the address. |
+
+The host also needs outbound access to the public address of the gateway (443, the key set), to the backend system and to the image registry.
+
+## Several instances
+
+Behind a balancer the instances share one address, so they need what one instance keeps in its own memory or state directory: Redis for the
+one-time `jti` (`MCP_REDIS_HOST` and the lines under it; without it a token could be used once on each instance), the same
+`MCP_PAGING_CURSOR_KEY` (otherwise a cursor from one instance is refused by another) and the same certificate (`MCP_TLS_CERT` and `MCP_TLS_KEY`,
+otherwise each instance generates its own and the gateway sees the fingerprint change from one call to the next). Compose runs one instance; Redis is
+yours.
 
 ## Closed network
 
@@ -106,28 +114,30 @@ MCP_REGISTRY=artifactory.corp.test/mcp
 
 ## Upgrade
 
-Change `MCP_EXAMPLE_VERSION` in `.env` (or the default in `compose.yaml`) and run `docker compose up -d`. A new version with other
-policies waits in `pending_approval` after the pipeline registers it, as above.
+Change `MCP_EXAMPLE_VERSION` in `.env` (or the default in `compose.yaml`) and run `docker compose up -d`. The state volume keeps the certificate, so
+the connection stays approved. A new version with other policies or tools waits in `pending_approval`: the gateway pulls the manifest within a minute
+and the administrator approves the change, as above.
 
 ## Virtual machine without Docker
 
 `systemd/` has a unit and its environment file for the jar; step by step in the
 [VM installation guide](https://github.com/aiwcorpo/mcp-docs/blob/main/docs/operator/install-vm.md) of `mcp-docs`. The environment
-variables are the ones of `server.env`, with the stores at `/etc/mcp-example/tls`.
+variables are the ones of `server.env`; the unit's `StateDirectory=` keeps the certificate in `/var/lib/mcp-example`.
 
 ```bash
 sudo useradd --system --no-create-home --shell /usr/sbin/nologin mcp
-sudo install -d -o root -g mcp -m 0750 /opt/mcp-example /etc/mcp-example /etc/mcp-example/tls
+sudo install -d -o root -g mcp -m 0750 /opt/mcp-example /etc/mcp-example
 sudo install -o root -g mcp -m 0640 mcp-example.jar /opt/mcp-example/mcp-example.jar
 sudo install -o root -g mcp -m 0640 systemd/mcp-example.env.template /etc/mcp-example/mcp-example.env   # then fill it in
 sudo install -m 0644 systemd/mcp-example.service /etc/systemd/system/
 sudo systemctl daemon-reload && sudo systemctl enable --now mcp-example
+journalctl -u mcp-example | grep event=tls_certificate
 ```
 
-Health over mTLS (the probe certificate comes from the same CA):
+Health (any certificate; no token is needed for this path):
 
 ```bash
-curl -fsS --cacert ca.crt --cert probe.crt --key probe.key https://mcp-example.internal:8443/actuator/health
+curl -fsSk https://localhost:8443/actuator/health
 ```
 
 Update: keep the old jar for a rollback, replace it and restart.

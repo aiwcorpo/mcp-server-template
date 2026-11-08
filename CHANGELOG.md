@@ -4,6 +4,18 @@ Versions follow SemVer, newest first.
 
 ## Unreleased
 
+- CC-249, the gateway connects to the server by its address: the server needs no certificate from the internal CA, no mTLS and no policy data
+  address. `application.yml` loses the TLS bundles, `server.ssl.client-auth`, `policy-data.*`, `manifest.internal-url`, the Redis block and the cursor key
+  mapping (the starter reads `MCP_TLS_*`, `MCP_PLAIN_HTTP`, `MCP_STATE_DIR`, `MCP_REDIS_*` and `MCP_PAGING_CURSOR_KEY` itself); `MCP_GATEWAY_JWKS_URI` is the public
+  `https://<domain>/.well-known/mcp-jwks.json`. The server serves `GET /.well-known/mcp-manifest` and takes `POST /.well-known/mcp-policy-data`.
+- `deploy/`: `compose.yaml` has the server and a state volume only (no Redis service), `certs/` is optional (your own certificate), `server.env` has the JWKS
+  address, the system address and optional TLS and Redis lines. The systemd unit has `StateDirectory=`. `deploy/README.md` is the new procedure: the author
+  starts the server, the operator enters its address in the portal and approves the connection after comparing the fingerprint from the server log. The
+  certificate from the internal CA and the registration of the manifest from the pipeline with the CI certificate are gone.
+- `Dockerfile`: a writable state directory `/var/lib/mcp/state` (a volume) for the generated certificate.
+- Tests: `ManifestTest` reads the well-known path with a token of the purpose `manifest`; `ProductionConfigurationTest` checks that no client
+  certificate is required; `GatewayOnlyAccessTest` covers the purposes of tokens and the stale policy data.
+
 - Removed `mcp-stub-backend` (module, `Stub backend` and `Local stack` run configurations, the `stub` profile of `deploy/compose.yaml`) and
   `tests/new-server-test.sh`: test material does not belong in the repository users copy. Both are in `mcp-e2e` now (`stub-backend/`
   and `tests/new-server-test.sh`, which runs against `../mcp-server-template`). The `generator` job of the three CI files is gone with the

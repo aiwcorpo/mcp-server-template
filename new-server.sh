@@ -145,8 +145,8 @@ cat > "$target/README.md" <<EOF
 # mcp-$system
 
 MCP server for $system in the aiwcorpo MCP platform, generated from \`mcp-server-template\`. It runs only behind the platform
-gateway: it accepts traffic over mTLS with the gateway's internal JWT, answers 401 without it, and calls $system with the
-credential the gateway attaches to each request. Its Cedar namespace is \`$System\`, its policies are in
+gateway: the gateway connects to its address, and it accepts only calls with the gateway's internal JWT (401 without it) and calls
+$system with the credential the gateway attaches to each request. Its Cedar namespace is \`$System\`, its policies are in
 \`mcp-app/src/main/resources/mcp/policies/\`.
 
 ## Build
@@ -184,8 +184,9 @@ credential.
 
 ## Deployment
 
-\`deploy/\`: \`compose.yaml\` with \`server.env\` and \`certs/\`, or the systemd unit. \`deploy/README.md\` has the steps and the
-registration of the server at the gateway.
+\`deploy/\`: \`compose.yaml\` with \`server.env\` (and \`certs/\` only for your own certificate), or the systemd unit. You start the server;
+the platform operator enters its address in the portal and approves the connection after comparing the certificate fingerprint from the
+server log. \`deploy/README.md\` has the steps.
 
 ## License
 

@@ -2,7 +2,7 @@
 
 Versions follow SemVer, newest first.
 
-## Unreleased
+## 2.0.0 - 2026-11-09
 
 - CC-249, the gateway connects to the server by its address: the server needs no certificate from the internal CA, no mTLS and no policy data
   address. `application.yml` loses the TLS bundles, `server.ssl.client-auth`, `policy-data.*`, `manifest.internal-url`, the Redis block and the cursor key
@@ -22,8 +22,6 @@ Versions follow SemVer, newest first.
   test. In-process tests keep their own `StubBackend` in `mcp-app`.
 - The scope mapping of LocalGateway moved from `local/` to `.run/scope-mapping.json` and its generated env file to `local-gateway.env`
   in the project directory, as in the other servers; the `local/` directory is gone.
-
-## 2.0.0 - 2026-11-06
 
 Dynamic servers: built on `mcp-platform-starter` 4.0.0 (contracts 7.0.0). The template is the reference for a new server, which is added
 to a running platform and removed again without a restart. Major release: generated servers from 1.0.0 do not carry over (see the

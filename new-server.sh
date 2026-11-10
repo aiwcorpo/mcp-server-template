@@ -205,5 +205,5 @@ Generated mcp-$system in $target
 Next:
   cd $target && git init
   ./mvnw -B verify       # JDK 25; builds and runs the tests against TestGateway and an in-process stub backend
-Then replace the sample record domain and the policies with the real ones (README of the template, "Create a new MCP server").
+Then replace the sample record domain and the policies with the real ones (README of the template, "Write the server").
 EOF

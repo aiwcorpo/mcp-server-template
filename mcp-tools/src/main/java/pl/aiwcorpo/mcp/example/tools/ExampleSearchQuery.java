@@ -5,6 +5,8 @@ import java.util.Optional;
 import java.util.Set;
 import pl.aiwcorpo.mcp.platform.resource.QueryScope;
 import pl.aiwcorpo.mcp.platform.resource.StructuredQuery.Operator;
+import pl.aiwcorpo.mcp.platform.security.BackendCredential;
+import pl.aiwcorpo.mcp.platform.security.CredentialContext;
 
 /**
  * The backend query of {@code search_records}, built by the server from the scope of the policy and the values the
@@ -23,10 +25,18 @@ final class ExampleSearchQuery {
     private ExampleSearchQuery() {
     }
 
-    /** The query for the requested project; the grants are not a condition of a system that applies the user's rights. */
+    /**
+     * The query for the requested project; the grants are not a condition of a system that applies the user's rights. The
+     * service account sees every project, so its query is limited to the grants, and a project outside them is not
+     * searched at all (empty).
+     */
     static Optional<String> of(QueryScope scope, String project, String text) {
         QueryScope narrowed = scope.narrowedTo(List.of(project));
-        return Optional.of(narrowed.jql(Set.of("text"))
+        boolean serviceAccount = CredentialContext.type().filter(BackendCredential.Type.SERVICE_ACCOUNT::equals).isPresent();
+        if (serviceAccount && !narrowed.grantedIds().contains(project)) {
+            return Optional.empty();
+        }
+        return Optional.of(narrowed.jql(Set.of("text"), serviceAccount)
                 .where("text", Operator.CONTAINS, text)
                 .build());
     }

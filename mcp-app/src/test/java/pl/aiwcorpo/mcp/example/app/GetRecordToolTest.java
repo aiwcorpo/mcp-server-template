@@ -27,6 +27,8 @@ import pl.aiwcorpo.mcp.platform.security.CredentialRequiredException;
 class GetRecordToolTest extends ServerTestSupport {
 
     private static final String PAT = "Bearer example-pat-of-jkowalski-7f3a";
+    /** Bidi override, zero-width space and a long run, as a backend user could write them into a plain field. */
+    private static final String PLAIN_FIELD_JSON = "jk\\u202Eowalski\\u200B" + "A".repeat(5000);
 
     @Autowired
     ExampleResourcePort resourcePort;
@@ -46,6 +48,18 @@ class GetRecordToolTest extends ServerTestSupport {
             assertThat(result.isError()).isTrue();
             assertThat(text(result)).contains("\"error\":\"internal_error\"");
             assertThat(BACKEND.authorizations()).isEmpty();
+        }
+    }
+
+    @Test
+    void theStatusIsCleanedAndCutBeforeItReachesTheModel() {
+        BACKEND.writesInPlainFields(PLAIN_FIELD_JSON);
+        try (McpSyncClient client = clientWithCredential(PAT)) {
+            McpSchema.CallToolResult result = call(client, "get_record", Map.of("recordId", StubBackend.OPEN_1));
+
+            assertThat(result.isError()).isFalse();
+            assertThat(text(result)).contains("\"status\":\"jk owalski " + "A".repeat(89) + "\"")
+                    .doesNotContain("\u202E", "\u200B", "A".repeat(90));
         }
     }
 

@@ -2,6 +2,7 @@ package pl.aiwcorpo.mcp.example.tools;
 
 import org.springframework.lang.Nullable;
 import pl.aiwcorpo.mcp.example.core.domain.ExampleRecord;
+import pl.aiwcorpo.mcp.platform.text.TextHygiene;
 import pl.aiwcorpo.mcp.platform.text.UntrustedText;
 
 /**
@@ -14,6 +15,7 @@ import pl.aiwcorpo.mcp.platform.text.UntrustedText;
 public record ExampleRecordView(String id, String project, UntrustedText title, @Nullable String status) {
 
     static final int TITLE_MAX_LENGTH = 500;
+    static final int PLAIN_FIELD_MAX_LENGTH = 100;
 
     /**
      * Without a server filter the factory does the whole job. A server that strips markup from the text goes
@@ -21,6 +23,14 @@ public record ExampleRecordView(String id, String project, UntrustedText title, 
      */
     static ExampleRecordView of(ExampleRecord record) {
         return new ExampleRecordView(record.id(), record.project(),
-                UntrustedText.plain(record.title(), TITLE_MAX_LENGTH), record.status());
+                UntrustedText.plain(record.title(), TITLE_MAX_LENGTH), plainField(record.status()));
+    }
+
+    /**
+     * A short backend value returned as a plain string, outside the untrusted-data marking (a status, an author, an id): a
+     * backend user may be able to set it, so forbidden characters go and the length is bounded.
+     */
+    static String plainField(@Nullable String value) {
+        return value == null ? null : UntrustedText.cut(TextHygiene.normalize(value), PLAIN_FIELD_MAX_LENGTH);
     }
 }

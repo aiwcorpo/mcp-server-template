@@ -7,6 +7,7 @@ import pl.aiwcorpo.mcp.platform.text.UntrustedText;
 public record ExampleUpdateView(String id, UntrustedText title) {
 
     static ExampleUpdateView of(ExampleRecord record) {
-        return new ExampleUpdateView(record.id(), UntrustedText.plain(record.title(), ExampleRecordView.TITLE_MAX_LENGTH));
+        return new ExampleUpdateView(ExampleRecordView.plainField(record.id()),
+                UntrustedText.plain(record.title(), ExampleRecordView.TITLE_MAX_LENGTH));
     }
 }

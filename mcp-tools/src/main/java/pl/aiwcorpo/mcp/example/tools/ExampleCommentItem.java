@@ -10,6 +10,7 @@ public record ExampleCommentItem(String id, @Nullable String author, UntrustedTe
     static final int BODY_MAX_LENGTH = 2000;
 
     static ExampleCommentItem of(RecordComment comment) {
-        return new ExampleCommentItem(comment.id(), comment.author(), UntrustedText.plain(comment.body(), BODY_MAX_LENGTH));
+        return new ExampleCommentItem(ExampleRecordView.plainField(comment.id()), ExampleRecordView.plainField(comment.author()),
+                UntrustedText.plain(comment.body(), BODY_MAX_LENGTH));
     }
 }

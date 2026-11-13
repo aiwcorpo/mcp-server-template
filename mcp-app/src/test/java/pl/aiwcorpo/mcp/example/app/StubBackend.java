@@ -96,6 +96,7 @@ final class StubBackend {
     private volatile boolean resolveNotFound;
     private volatile String serverVersion = SERVER_VERSION;
     private volatile boolean versionHidden;
+    private volatile String plainFieldJson;
 
     private StubBackend(HttpServer server, HttpServer elsewhere) {
         this.server = server;
@@ -180,12 +181,21 @@ final class StubBackend {
         versionHidden = false;
     }
 
+    /**
+     * From now on comment 1 has this author and {@link #OPEN_1} this status, as the body of a JSON string (escapes allowed):
+     * values a backend user may be able to set.
+     */
+    void writesInPlainFields(String json) {
+        plainFieldJson = json;
+    }
+
     /** {@code /api/server-info} answers without a version, as a backend that hides it does. */
     void hidesVersion() {
         versionHidden = true;
     }
 
     void reset() {
+        plainFieldJson = null;
         updates.clear();
         resolveNotFound = false;
         indexSearches.clear();
@@ -373,7 +383,9 @@ final class StubBackend {
         int end = Math.min(COMMENTS, start + limit);
         List<String> rows = new ArrayList<>();
         for (int number = start + 1; number <= end; number++) {
-            rows.add(comment(number));
+            String row = comment(number);
+            rows.add(number == 1 && plainFieldJson != null
+                    ? row.replace("\"author\":\"jkowalski\"", "\"author\":\"" + plainFieldJson + "\"") : row);
         }
         respond(exchange, 200, "{\"comments\":[" + String.join(",", rows) + "],\"hasMore\":" + (end < COMMENTS) + "}");
     }
@@ -418,7 +430,8 @@ final class StubBackend {
             respond(exchange, 401, "{\"message\":\"token expired\"}");
         } else if (OPEN_1.equals(id)) {
             respond(exchange, 200, "{\"id\":\"" + OPEN_1 + "\",\"project\":\"" + open + "\",\"projectClassification\":\"\","
-                    + "\"title\":\"Quarterly report\",\"status\":\"open\",\"internalNotes\":\"not for the model\"}");
+                    + "\"title\":\"Quarterly report\",\"status\":\"" + (plainFieldJson == null ? "open" : plainFieldJson)
+                    + "\",\"internalNotes\":\"not for the model\"}");
         } else if (OPEN_2.equals(id)) {
             respond(exchange, 200, record(OPEN_2, open, "\"\"", "Report archive"));
         } else if (OTHER_7.equals(id)) {

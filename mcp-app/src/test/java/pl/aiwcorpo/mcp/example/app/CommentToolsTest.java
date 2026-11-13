@@ -19,6 +19,8 @@ class CommentToolsTest extends ServerTestSupport {
 
     private static final String PAT = "Bearer example-pat-of-jkowalski-7f3a";
     private static final Pattern NEXT_CURSOR = Pattern.compile("\"nextCursor\":\"([A-Za-z0-9_.-]+)\"");
+    /** Bidi override, zero-width space and a long run, as a backend user could write them into a plain field. */
+    private static final String PLAIN_FIELD_JSON = "jk\\u202Eowalski\\u200B" + "A".repeat(5000);
 
     @BeforeEach
     void resetBackend() {
@@ -48,6 +50,18 @@ class CommentToolsTest extends ServerTestSupport {
             assertThat(text(second)).contains("comment 21", "comment 23").doesNotContain("comment 24\"")
                     .contains("\"nextCursor\":null");
             assertThat(commentsIn(text(second))).isEqualTo(3);
+        }
+    }
+
+    @Test
+    void theAuthorIsCleanedAndCutBeforeItReachesTheModel() {
+        BACKEND.writesInPlainFields(PLAIN_FIELD_JSON);
+        try (McpSyncClient client = clientWithCredential(PAT)) {
+            McpSchema.CallToolResult result = call(client, "list_comments", Map.of("recordId", StubBackend.OPEN_1));
+
+            assertThat(result.isError()).isFalse();
+            assertThat(text(result)).contains("\"author\":\"jk owalski " + "A".repeat(89) + "\"")
+                    .doesNotContain("\u202E", "\u200B", "A".repeat(90));
         }
     }
 

@@ -1,5 +1,7 @@
 # mcp-server-template
 
+Part of [MCP Platform](https://github.com/aiwcorpo/mcp-platform), a self-hosted MCP gateway for companies. Documentation: [mcp.aiwcorpo.pl](https://mcp.aiwcorpo.pl/).
+
 Template for MCP servers of the aiwcorpo MCP platform, for developers who write a server for a new system. `new-server.sh`
 generates a working server from it; the template itself is a server for the placeholder system `example` with a stub backend.
 

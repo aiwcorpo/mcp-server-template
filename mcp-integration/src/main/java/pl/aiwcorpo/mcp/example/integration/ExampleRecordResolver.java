@@ -60,4 +60,9 @@ public class ExampleRecordResolver implements ResourceResolver<ExampleRecord> {
     public ResolvedResource describe(ExampleRecord record) {
         return ExampleResourceDescription.of(record);
     }
+
+    @Override
+    public Optional<ResolvedResource> probe(String recordId) {
+        return ExampleResourceDescription.probe(recordId);
+    }
 }

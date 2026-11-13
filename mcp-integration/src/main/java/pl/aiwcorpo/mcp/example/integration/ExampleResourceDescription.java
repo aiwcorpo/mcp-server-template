@@ -2,6 +2,7 @@ package pl.aiwcorpo.mcp.example.integration;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import pl.aiwcorpo.mcp.cedar.entities.ResolvedResource;
 import pl.aiwcorpo.mcp.cedar.entities.Scopes;
 import pl.aiwcorpo.mcp.example.core.domain.ExampleRecord;
@@ -33,5 +34,23 @@ final class ExampleResourceDescription {
                 .withScopes(scopes);
         return ResolvedResource.of(ExampleResourceModel.RECORD_TYPE, record.id(), Map.of("key", record.id()))
                 .withParent(container).withScopes(scopes);
+    }
+
+    /**
+     * The record as its id alone describes it: the project is the part before the number, with the least restrictive
+     * category. The policy is evaluated on it before the backend is asked, so a caller without a grant on the project gets
+     * not_found_or_denied whether or not the record exists, and whatever its classification.
+     */
+    static Optional<ResolvedResource> probe(String recordId) {
+        int dash = recordId.lastIndexOf('-');
+        if (dash <= 0) {
+            return Optional.empty();
+        }
+        String project = recordId.substring(0, dash);
+        List<String> scopes = List.of(Scopes.id(ExampleResourceModel.PARENT_TYPE, project));
+        ResolvedResource container = ResolvedResource.of(ExampleResourceModel.PARENT_TYPE, project,
+                Map.of("key", project, "category", "")).withScopes(scopes);
+        return Optional.of(ResolvedResource.of(ExampleResourceModel.RECORD_TYPE, recordId, Map.of("key", recordId))
+                .withParent(container).withScopes(scopes));
     }
 }

@@ -62,8 +62,8 @@ and in paths. A copy made by hand changes the same places; `grep -rIil example .
 | `EXAMPLE` | `NOTES` | environment variables |
 
 The version is reset to `0.1.0-SNAPSHOT`. The script also writes a `CHANGELOG.md` and a short `README.md` for the new server.
-`new-server.sh`, this README and the template's `CHANGELOG.md` are not copied. It fails, and removes the target, if the word
-`example` is left anywhere except in `LICENSE`. For a Cedar namespace that reads differently (`NotesApp`), change it only in the
+`new-server.sh`, this README, the template's `CHANGELOG.md`, `AGENTS.md` and `CLAUDE.md` are not copied.
+It fails, and removes the target, if the word `example` is left anywhere except in `LICENSE`. For a Cedar namespace that reads differently (`NotesApp`), change it only in the
 files that name `Notes::`; the groups and the system id do not depend on it.
 
 ## Configuration

@@ -51,6 +51,9 @@
         <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <mcp-platform.version>4.0.0</mcp-platform.version>
+        <!-- Security fixes newer than the parent above; drop both once the starter moves to a Boot release that manages them. -->
+        <tomcat.version>11.0.27</tomcat.version>
+        <jackson-bom.version>3.1.7</jackson-bom.version>
     </properties>
 
     <dependencyManagement>

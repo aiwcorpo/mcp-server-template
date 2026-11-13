@@ -5,9 +5,11 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import org.apache.catalina.util.ServerInfo;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
@@ -16,6 +18,7 @@ import org.springframework.boot.ssl.SslBundles;
 import org.springframework.core.env.PropertySource;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.mock.env.MockEnvironment;
+import org.springframework.web.servlet.DispatcherServlet;
 import pl.aiwcorpo.mcp.example.integration.ExampleBackendProperties;
 import pl.aiwcorpo.mcp.example.integration.ExampleBackendClient;
 import tools.jackson.core.Version;
@@ -103,11 +106,33 @@ class ProductionConfigurationTest {
     }
 
     @Test
-    void theEmbeddedTomcatAndJacksonIncludeTheirSecurityFixes() {
-        // The Boot parent stays on the starter's version, so the pom overrides these two; a parent bump must not lower them.
-        int[] tomcat = Arrays.stream(ServerInfo.getServerNumber().split("\\.")).mapToInt(Integer::parseInt).toArray();
-        assertThat(Arrays.compare(tomcat, new int[] {11, 0, 27})).as("Tomcat %s", ServerInfo.getServerNumber()).isNotNegative();
+    void theRuntimeLibrariesIncludeTheirSecurityFixes() throws IOException {
+        // The Boot parent stays on the starter's version, so the pom overrides these; a parent bump must not lower them.
+        assertAtLeast("Tomcat", ServerInfo.getServerNumber(), 11, 0, 27);
         assertThat(PackageVersion.VERSION).isGreaterThanOrEqualTo(new Version(3, 1, 7, null, null, null));
+        assertAtLeast("Spring MVC", DispatcherServlet.class.getPackage().getImplementationVersion(), 7, 0, 10);
+        assertAtLeast("Jackson 2", mavenVersion("com.fasterxml.jackson.core", "jackson-databind"), 2, 21, 7);
+        assertAtLeast("Netty", mavenVersion("io.netty", "netty-handler"), 4, 2, 19);
+        assertAtLeast("Log4j API", mavenVersion("org.apache.logging.log4j", "log4j-api"), 2, 25, 5);
+        assertAtLeast("Guava", mavenVersion("com.google.guava", "guava"), 33, 7, 2);
+    }
+
+    private static void assertAtLeast(String library, String version, int... minimum) {
+        assertThat(version).as(library).isNotNull();
+        int[] actual = Arrays.stream(version.split("[^0-9]+")).filter(part -> !part.isEmpty())
+                .limit(minimum.length).mapToInt(Integer::parseInt).toArray();
+        assertThat(Arrays.compare(actual, minimum)).as("%s %s", library, version).isNotNegative();
+    }
+
+    /** The version in the pom.properties the jar carries, the version Maven resolved. */
+    private static String mavenVersion(String groupId, String artifactId) throws IOException {
+        String path = "META-INF/maven/" + groupId + "/" + artifactId + "/pom.properties";
+        try (InputStream in = ProductionConfigurationTest.class.getClassLoader().getResourceAsStream(path)) {
+            assertThat(in).as(path).isNotNull();
+            Properties properties = new Properties();
+            properties.load(in);
+            return properties.getProperty("version");
+        }
     }
 
     private static MockEnvironment environment() {

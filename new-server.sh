@@ -188,6 +188,17 @@ credential.
 the platform operator enters its address in the portal and approves the connection after comparing the certificate fingerprint from the
 server log. \`deploy/README.md\` has the steps.
 
+## Release
+
+A pushed tag \`v<version>\` runs \`.github/workflows/release.yml\`, which pushes the image to ghcr.io and creates the GitHub Release
+from the tagged commit. The workflow cannot check who pushed the tag or whether the commit was reviewed; set this up in the repository
+settings before the first tag:
+
+1. Settings > Environments: create \`release\` with required reviewers, "Prevent self-review" on, and deployment branches and tags
+   limited to tags \`v*\`.
+2. Settings > Rules > Rulesets: a tag ruleset for \`v*\` that restricts creation, update and deletion to the release maintainers.
+3. Package settings of \`mcp-server-$system\` on ghcr.io: write access only for this repository and the release maintainers.
+
 ## License
 
 Apache-2.0, see \`LICENSE\`.
@@ -206,4 +217,5 @@ Next:
   cd $target && git init
   ./mvnw -B verify       # JDK 25; builds and runs the tests against TestGateway and an in-process stub backend
 Then replace the sample record domain and the policies with the real ones (README of the template, "Write the server").
+Before the first v* tag: environment release with required reviewers and a tag ruleset for v* (README.md, "Release").
 EOF

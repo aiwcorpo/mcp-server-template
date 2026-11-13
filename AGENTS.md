@@ -4,7 +4,7 @@ The template for MCP servers of [MCP Platform](https://github.com/aiwcorpo/mcp-p
 placeholder system `example`, and `new-server.sh <system>` copies it into a new server (`mcp-server-<system>`). The server runs
 only behind `mcp-gateway`: the library `mcp-starter-lib` (property `mcp-platform.version` in `pom.xml`) verifies the gateway's
 internal JWT, the credential, the audit and the errors. Its interfaces are contracts of `mcp-contracts` (C2, C3, C6 manifest, C10
-tool errors, C14 well-known paths). Tool authoring: CONTRIBUTING.md and the developer guide in `mcp-docs`.
+tool errors, C14 well-known paths). Tool authoring: CONTRIBUTING.md and the [developer guide](https://mcp.aiwcorpo.pl/2.0/developers/guides/server-from-template/).
 
 ## Commands
 

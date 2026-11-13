@@ -38,8 +38,8 @@ In the generated directory:
 7. Start the server with `deploy/` ([deploy/README.md](deploy/README.md)) and give the platform operator its address. The
    operator adds it in the portal; nothing else in the platform changes or restarts.
 
-Details for each step: [CONTRIBUTING.md](CONTRIBUTING.md). Platform guides: [A new server](https://github.com/aiwcorpo/mcp-docs/blob/main/docs/developer/new-server.md),
-[Writing tools](https://github.com/aiwcorpo/mcp-docs/blob/main/docs/developer/tools.md).
+Details for each step: [CONTRIBUTING.md](CONTRIBUTING.md). Platform guides: [Quickstart](https://mcp.aiwcorpo.pl/2.0/developers/quickstart/),
+[Write a server from the template](https://mcp.aiwcorpo.pl/2.0/developers/guides/server-from-template/#write-a-tool).
 
 ## Tools of the sample server
 

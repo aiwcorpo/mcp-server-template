@@ -139,7 +139,7 @@ Versions follow SemVer, newest first. Until the first release the working versio
 - Generated from mcp-server-template for the system \`$system\`.
 EOF
 
-developer_guide="https://github.com/aiwcorpo/mcp-docs/blob/main/docs/developer"
+docs_url="https://mcp.aiwcorpo.pl/2.0/developers"
 platform_version="$(sed -n 's|.*<mcp-platform.version>\(.*\)</mcp-platform.version>.*|\1|p' "$template/pom.xml")"
 cat > "$target/README.md" <<EOF
 # mcp-$system
@@ -163,8 +163,8 @@ export JAVA_HOME="\$(/usr/libexec/java_home -v 25)"   # macOS; on Linux the JDK 
 The record domain, the adapter and the policies are placeholders: replace them with the real ones.
 
 - Resource types and policies: \`mcp-app/src/main/resources/mcp/policies/\`, tested in \`${System}PolicyTest\`.
-- [A new server]($developer_guide/new-server.md): modules, what to complete, the patterns the server carries.
-- [Writing tools]($developer_guide/tools.md): annotations, risk, resources, search, results and errors.
+- [Quickstart]($docs_url/quickstart/): generate, build, run and register a server.
+- [Write a server from the template]($docs_url/guides/server-from-template/#write-a-tool): modules, annotations, risk, resources, results and errors.
 
 ## Run locally
 

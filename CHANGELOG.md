@@ -2,6 +2,10 @@
 
 Versions follow SemVer, newest first.
 
+## Unreleased
+
+- Links to the documentation point to https://mcp.aiwcorpo.pl/2.0/ (the pages under `mcp-docs/docs/developer` no longer exist), in the READMEs, `CONTRIBUTING.md`, `SECURITY.md` and the README that `new-server.sh` generates.
+
 ## 2.0.0 - 2026-11-09
 
 - CC-249, the gateway connects to the server by its address: the server needs no certificate from the internal CA, no mTLS and no policy data

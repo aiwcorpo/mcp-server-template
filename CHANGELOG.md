@@ -4,7 +4,9 @@ Versions follow SemVer, newest first.
 
 ## Unreleased
 
-- Links to the documentation point to https://mcp.aiwcorpo.pl/2.0/ (the pages under `mcp-docs/docs/developer` no longer exist), in the READMEs, `CONTRIBUTING.md`, `SECURITY.md` and the README that `new-server.sh` generates.
+- Links to the documentation point to https://mcp.aiwcorpo.pl/2.0/, in the READMEs, `CONTRIBUTING.md`, `SECURITY.md` and the README that `new-server.sh` generates.
+- `README.md`, `CONTRIBUTING.md`, `AGENTS.md` and the README that `new-server.sh` generates no longer point to the private `mcp-e2e` repository; the first
+  try of a server without the real system uses any HTTP endpoint you control at `MCP_<SYSTEM>_URL`.
 
 ## 2.0.0 - 2026-11-09
 

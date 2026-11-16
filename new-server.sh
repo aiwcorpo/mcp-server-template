@@ -169,8 +169,8 @@ The record domain, the adapter and the policies are placeholders: replace them w
 ## Run locally
 
 In IntelliJ start the run configurations \`LocalGateway\` and \`Server (dev)\` (in \`.run/\`). The server looks for $system at
-127.0.0.1:18081 (\`MCP_${SYSTEM}_URL\` changes that); for a first try without a real $system, the stub backend of the mcp-e2e repository
-(\`stub-backend/\`) listens there. From a shell, after \`./mvnw verify\`:
+127.0.0.1:18081 (\`MCP_${SYSTEM}_URL\` changes that); for a first try without a real $system, point it at any HTTP
+endpoint you control. From a shell, after \`./mvnw verify\`:
 
 \`\`\`bash
 java -jar ~/.m2/repository/pl/aiwcorpo/mcp/mcp-platform-test/$platform_version/mcp-platform-test-$platform_version-local-gateway.jar \\

@@ -86,8 +86,8 @@ export JAVA_HOME=<path to JDK 25>
 ```
 
 The jar is `mcp-app/target/mcp-example.jar`. Tests need neither Docker nor a platform. Working on the template:
-[CONTRIBUTING.md](CONTRIBUTING.md). `new-server.sh` is tested in the `mcp-e2e` repository (`tests/new-server-test.sh`, which
-expects this template in `../mcp-server-template`).
+[CONTRIBUTING.md](CONTRIBUTING.md). After a change to `new-server.sh`, generate a server into a temporary
+directory and run `./mvnw -B verify` in it.
 
 ## More
 

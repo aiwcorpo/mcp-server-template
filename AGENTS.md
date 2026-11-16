@@ -19,10 +19,9 @@ JDK 25 is required; the default `java` on PATH may be older. On macOS with Homeb
 `./mvnw -B verify` also writes `mcp-app/target/mcp-example.jar` and `mcp-app/target/mcp-manifest.json`, and puts the
 `mcp-contracts` jar into `~/.m2`, which `new-server.sh` reads for the system id pattern. Run it before the generator.
 
-After any change, check the generator. Its test lives in `mcp-e2e`, not here:
+After any change, check the generator:
 
 ```bash
-MCP_TEMPLATE="$PWD" ../mcp-e2e/tests/new-server-test.sh --build   # generates servers into a temp dir and builds them
 dir="$(mktemp -d)" && ./new-server.sh notes "$dir/mcp-server-notes" && (cd "$dir/mcp-server-notes" && git init -q && ./mvnw -B verify)
 ```
 
@@ -44,7 +43,7 @@ There is no separate lint or formatter step.
   - write `example` only where the renamed word is right for the new server; the generator fails if `example` is left anywhere
     but `LICENSE`, and words such as "for example" are renamed too;
   - add a new template-only file to that `case` and to "What the script renames" in README.md;
-  - test material that should not ship to new servers belongs in `mcp-e2e`.
+  - test material that should not ship to new servers does not belong in this repository.
 - The project version is replaced by `0.1.0-SNAPSHOT` in the poms and in the image tag of `deploy/compose.yaml`
   (`_VERSION:-<version>`). Keep both in that exact form, or `new-server.sh` leaves the template version behind.
 - The generated server must build and pass its tests without edits.

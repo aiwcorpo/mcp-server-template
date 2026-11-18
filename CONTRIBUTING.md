@@ -14,7 +14,7 @@ needed: the tests run the whole server against an in-process stub backend (`Stub
 ./mvnw -B verify     # the same command runs in CI
 ```
 
-`./mvnw -B verify` must pass before a merge. A new tool needs the items of the [tool guide](https://github.com/aiwcorpo/mcp-docs/blob/main/docs/developer/tools.md) in `mcp-docs`: risk, title,
+`./mvnw -B verify` must pass before a merge. A new tool needs the items of the [tool guide](https://mcp.aiwcorpo.pl/2.0/developers/guides/server-from-template/#write-a-tool): risk, title,
 `@ResourceRef` for every id it names, a closed argument schema, a negative test, and a row in the README table.
 
 ## Policies
@@ -57,8 +57,8 @@ the service account, a client the gateway does not allow, an emergency override.
 
 In IntelliJ start the configurations `LocalGateway` and `Server (dev)` from `.run/`. LocalGateway stands in for the gateway:
 test JWKS, policy data from your policies and `.run/scope-mapping.json`, MCP endpoint on port 18500. The server listens on
-127.0.0.1:8080 with the `dev` profile and calls the system at `MCP_EXAMPLE_URL` (default `http://localhost:18081`; the stub
-backend of the `mcp-e2e` repository listens there). Connect an MCP client to `http://127.0.0.1:18500/mcp` with
+127.0.0.1:8080 with the `dev` profile and calls the system at `MCP_EXAMPLE_URL` (default `http://localhost:18081`; for a first
+try without the real system, point it at a reachable instance or at any HTTP endpoint you control). Connect an MCP client to `http://127.0.0.1:18500/mcp` with
 `Authorization: Bearer any-token`. The local user is in the groups `mcp-example-read` and `mcp-example-write`.
 
 Never set `SPRING_PROFILES_ACTIVE=dev` in an `.env` file, a systemd unit or an image: that profile accepts JWTs signed with the

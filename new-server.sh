@@ -11,7 +11,7 @@
 #   example / Example / EXAMPLE -> <system> / <System> / <SYSTEM>
 # The Cedar namespace is the Example form (Example::Record becomes <System>::Record) and the groups of the policies are
 # mcp-<system>-read and so on; everything else the policies need comes from the files in mcp/policies/, which are copied
-# and renamed like any other. Template-only files (this script, README.md, CHANGELOG.md) are not
+# and renamed like any other. Template-only files (this script, README.md, CHANGELOG.md, AGENTS.md, CLAUDE.md) are not
 # copied; the generated server gets a CHANGELOG.md and a short README.md of its own, both in English; the project version
 # is reset to 0.1.0-SNAPSHOT. LICENSE is copied unchanged, NOTICE, SECURITY.md, CONTRIBUTING.md and the release workflow
 # like the rest. Afterwards no "example" may remain; on any failure the target directory is removed.
@@ -114,7 +114,7 @@ mkdir "$target"
 while IFS= read -r file; do
     [[ -f "$file" ]] || continue
     case "$file" in
-        new-server.sh | README.md | CHANGELOG.md) continue ;;
+        new-server.sh | README.md | CHANGELOG.md | AGENTS.md | CLAUDE.md) continue ;;
     esac
     destination="$target/$(printf '%s' "$file" | rename)"
     mkdir -p "$(dirname "$destination")"
@@ -139,7 +139,7 @@ Versions follow SemVer, newest first. Until the first release the working versio
 - Generated from mcp-server-template for the system \`$system\`.
 EOF
 
-developer_guide="https://github.com/aiwcorpo/mcp-docs/blob/main/docs/developer"
+docs_url="https://mcp.aiwcorpo.pl/2.0/developers"
 platform_version="$(sed -n 's|.*<mcp-platform.version>\(.*\)</mcp-platform.version>.*|\1|p' "$template/pom.xml")"
 cat > "$target/README.md" <<EOF
 # mcp-$system
@@ -163,14 +163,14 @@ export JAVA_HOME="\$(/usr/libexec/java_home -v 25)"   # macOS; on Linux the JDK 
 The record domain, the adapter and the policies are placeholders: replace them with the real ones.
 
 - Resource types and policies: \`mcp-app/src/main/resources/mcp/policies/\`, tested in \`${System}PolicyTest\`.
-- [A new server]($developer_guide/new-server.md): modules, what to complete, the patterns the server carries.
-- [Writing tools]($developer_guide/tools.md): annotations, risk, resources, search, results and errors.
+- [Quickstart]($docs_url/quickstart/): generate, build, run and register a server.
+- [Write a server from the template]($docs_url/guides/server-from-template/#write-a-tool): modules, annotations, risk, resources, results and errors.
 
 ## Run locally
 
 In IntelliJ start the run configurations \`LocalGateway\` and \`Server (dev)\` (in \`.run/\`). The server looks for $system at
-127.0.0.1:18081 (\`MCP_${SYSTEM}_URL\` changes that); for a first try without a real $system, the stub backend of the mcp-e2e repository
-(\`stub-backend/\`) listens there. From a shell, after \`./mvnw verify\`:
+127.0.0.1:18081 (\`MCP_${SYSTEM}_URL\` changes that); for a first try without a real $system, point it at any HTTP
+endpoint you control. From a shell, after \`./mvnw verify\`:
 
 \`\`\`bash
 java -jar ~/.m2/repository/pl/aiwcorpo/mcp/mcp-platform-test/$platform_version/mcp-platform-test-$platform_version-local-gateway.jar \\

@@ -38,8 +38,8 @@ In the generated directory:
 7. Start the server with `deploy/` ([deploy/README.md](deploy/README.md)) and give the platform operator its address. The
    operator adds it in the portal; nothing else in the platform changes or restarts.
 
-Details for each step: [CONTRIBUTING.md](CONTRIBUTING.md). Platform guides: [A new server](https://github.com/aiwcorpo/mcp-docs/blob/main/docs/developer/new-server.md),
-[Writing tools](https://github.com/aiwcorpo/mcp-docs/blob/main/docs/developer/tools.md).
+Details for each step: [CONTRIBUTING.md](CONTRIBUTING.md). Platform guides: [Quickstart](https://mcp.aiwcorpo.pl/2.0/developers/quickstart/),
+[Write a server from the template](https://mcp.aiwcorpo.pl/2.0/developers/guides/server-from-template/#write-a-tool).
 
 ## Tools of the sample server
 
@@ -62,8 +62,8 @@ and in paths. A copy made by hand changes the same places; `grep -rIil example .
 | `EXAMPLE` | `NOTES` | environment variables |
 
 The version is reset to `0.1.0-SNAPSHOT`. The script also writes a `CHANGELOG.md` and a short `README.md` for the new server.
-`new-server.sh`, this README and the template's `CHANGELOG.md` are not copied. It fails, and removes the target, if the word
-`example` is left anywhere except in `LICENSE`. For a Cedar namespace that reads differently (`NotesApp`), change it only in the
+`new-server.sh`, this README, the template's `CHANGELOG.md`, `AGENTS.md` and `CLAUDE.md` are not copied.
+It fails, and removes the target, if the word `example` is left anywhere except in `LICENSE`. For a Cedar namespace that reads differently (`NotesApp`), change it only in the
 files that name `Notes::`; the groups and the system id do not depend on it.
 
 ## Configuration
@@ -86,8 +86,8 @@ export JAVA_HOME=<path to JDK 25>
 ```
 
 The jar is `mcp-app/target/mcp-example.jar`. Tests need neither Docker nor a platform. Working on the template:
-[CONTRIBUTING.md](CONTRIBUTING.md). `new-server.sh` is tested in the `mcp-e2e` repository (`tests/new-server-test.sh`, which
-expects this template in `../mcp-server-template`).
+[CONTRIBUTING.md](CONTRIBUTING.md). After a change to `new-server.sh`, generate a server into a temporary
+directory and run `./mvnw -B verify` in it.
 
 ## More
 

@@ -12,7 +12,7 @@ name: mcp-example
 
 services:
   mcp-example:
-    image: ${MCP_REGISTRY:-ghcr.io/aiwcorpo}/mcp-server-example:${MCP_EXAMPLE_VERSION:-2.0.0}
+    image: ${MCP_REGISTRY:-ghcr.io/aiwcorpo}/mcp-server-example:${MCP_EXAMPLE_VERSION:-2.0.1}
     build:
       context: ..
       dockerfile: Dockerfile

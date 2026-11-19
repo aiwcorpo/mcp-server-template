@@ -2,8 +2,17 @@
 
 Versions follow SemVer, newest first.
 
-## Unreleased
+## 2.0.1 - 2026-11-19
 
+Patch release with the fixes from the 2026-11-13 audit. Built on `mcp-platform-starter` 4.1.0 (contracts 7.2.0, Spring Boot 4.1.0).
+
+- The starter is 4.1.0 (was 4.0.0), which brings `mcp-contracts` 7.2.0.
+- Tomcat is overridden to 11.0.27 and Jackson to 3.1.7 (L-05).
+- A record id is judged by its project before the backend is asked (L-04).
+- The service account's search is limited to the caller's grants (L-06).
+- Plain backend strings in tool results are normalized and cut to the length limit (L-07).
+- The release workflow refuses to push a release version that is already published (L-02); the generated README lists the release settings (L-01).
+- Merge-request pipelines use a read-only Maven cache of their own (L-03).
 - Links to the documentation point to https://mcp.aiwcorpo.pl/2.0/, in the READMEs, `CONTRIBUTING.md`, `SECURITY.md` and the README that `new-server.sh` generates.
 - `README.md`, `CONTRIBUTING.md`, `AGENTS.md` and the README that `new-server.sh` generates no longer point to the private `mcp-e2e` repository; the first
   try of a server without the real system uses any HTTP endpoint you control at `MCP_<SYSTEM>_URL`.

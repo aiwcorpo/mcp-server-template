@@ -153,6 +153,11 @@ class ToolsOnlyAndAgentsTest extends ServerTestSupport {
             assertThat(post(call, headers, session).statusCode()).as(token.getKey()).isEqualTo(401);
         }
         assertThat(BACKEND.authorizations()).isEmpty();
+
+        Map<String, String> control = new java.util.LinkedHashMap<>(GATEWAY.user().tool("get_record").mint().headers());
+        control.put("X-MCP-Credential", PAT);
+        control.put("X-MCP-Credential-Type", SampleScope.CREDENTIAL_TYPE.wireName());
+        assertThat(post(call, control, session).statusCode()).as("the same token without pty and act").isEqualTo(200);
     }
 
     private McpSchema.CallToolResult getRecord(Consumer<TestGateway.Token> principal) {

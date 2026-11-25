@@ -166,6 +166,12 @@ The record domain, the adapter and the policies are placeholders: replace them w
 - [Quickstart]($docs_url/quickstart/): generate, build, run and register a server.
 - [Write a server from the template]($docs_url/guides/server-from-template/#write-a-tool): modules, annotations, risk, resources, results and errors.
 
+## Tools only
+
+The server serves tools: resources, prompts, completion and logging are not declared and are answered with -32601, and a specification bean for
+one of them stops the server at startup. The manifest says \`contractsVersion: "8.0.0"\`. Agents are let in only from the clients the administrator
+lists in \`allowedAgentClients\`; a policy can read \`context.principalType\` (\`user\`, \`agent\`, \`delegated\`) and forbid them.
+
 ## Run locally
 
 In IntelliJ start the run configurations \`LocalGateway\` and \`Server (dev)\` (in \`.run/\`). The server looks for $system at

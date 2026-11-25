@@ -125,4 +125,23 @@ class ExamplePolicyTest {
         assertThat(policies.serverPolicies().resourceTypes().isValidId("Example::Record", "ABC-0")).isFalse();
         assertThat(policies.serverPolicies().resourceTypes().isValidId("Example::Project", "ABC")).isTrue();
     }
+
+    @Test
+    void anAgentIsDecidedOnlyFromAnAgentClientAndAPolicyCanForbidAgents() {
+        Caller agent = Caller.of("3b0f6c52-8f3e-4f0e-b6a2-5d5a1f0e9c11", "service-account-agent-reports", List.of(READ), "agent-reports")
+                .withPrincipalType("agent");
+        Caller agentFromHumanClient = Caller.of("3b0f6c52-8f3e-4f0e-b6a2-5d5a1f0e9c11", "service-account-agent-reports", List.of(READ), "claude-code")
+                .withPrincipalType("agent");
+        PolicyDecisions listed = PolicyDecisions.fromResources().allowedAgentClients("agent-reports");
+
+        listed.assertAllowed(agent, "read", OPEN);
+        assertThat(listed.decide(agentFromHumanClient, "read", OPEN).errors()).anyMatch(error -> error.contains("not allowed by the policy data"));
+        PolicyDecisions.fromResources().assertDenied(agent, "read", OPEN);
+
+        PolicyDecisions noAgents = PolicyDecisions.fromResources().allowedAgentClients("agent-reports")
+                .override("override-no-agents",
+                        "forbid (principal, action == Example::Action::\"read\", resource) when { context has principalType && context.principalType == \"agent\" };");
+        assertThat(noAgents.decide(agent, "read", OPEN).determiningPolicies()).containsExactly("override-no-agents");
+        noAgents.assertAllowed(PolicyDecisions.caller(READ), "read", OPEN);
+    }
 }

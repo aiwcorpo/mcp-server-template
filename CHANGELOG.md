@@ -2,6 +2,25 @@
 
 Versions follow SemVer, newest first.
 
+## Unreleased
+
+Receiver of `mcp-contracts` 8.0.0 (CC-258 ... CC-266), built on `mcp-platform-starter` 5.0.0 (Spring Boot stays 4.1.0). Step 3 of the CC-260 rollout:
+the gateway sends `resource`, `pty`, `act` and `allowedAgentClients` to a server only when its approved manifest says `contractsVersion` 8.0.0 or newer,
+so a server still on the old template keeps working and gets none of them. The new manifest field is not part of any `definitionHash`, so no tool goes
+back to approval.
+
+- The starter is 5.0.0 (was 4.1.0), which brings `mcp-contracts` 8.0.0. The sample server uses none of the public types that changed, so only the version moved.
+- The manifest carries `contractsVersion: "8.0.0"` and the server serves tools only (resources, prompts, completion and logging are answered with -32601).
+- Tests cover the manifest field, the refused methods and the declaration at `initialize`, an agent and a delegated call against `allowedAgentClients`, the
+  `principalType`, `actorSub` and `actorClient` of the audit event, and tokens whose `pty` and `act` contradict each other.
+
+Servers generated from an older template: set `mcp-platform.version` in the root `pom.xml` to 5.0.0 (nothing else in the pom changes, and keep the Spring Boot
+parent at 4.1.0) and rebuild. Then check the server for what 5.0.0 removes or changes: a resource, prompt or completion specification bean, or the
+`spring.ai.mcp.server.capabilities.resource`, `.prompt` and `.completion` settings, stops the server at startup, so delete them; code compiled against 4.x must be
+recompiled (`CallerContext`, `PolicyData` and `RequestBinding` have more components, and an exhaustive `switch` over `RequestBinding.Kind` or
+`InternalJwtRejection` needs the new cases). Roll servers one by one after the gateway that understands 8.0.0, and pull the manifest again after each; until the
+gateway lists an agent client in `allowedAgentClients`, every agent call is refused with `access_denied`. The full guide is "Migracja serwera" in the CHANGELOG of `mcp-starter-lib` 5.0.0.
+
 ## 2.0.1 - 2026-11-19
 
 Patch release with the fixes from the 2026-11-13 audit. Built on `mcp-platform-starter` 4.1.0 (contracts 7.2.0, Spring Boot 4.1.0).

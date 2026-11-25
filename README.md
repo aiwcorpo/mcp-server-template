@@ -41,6 +41,15 @@ In the generated directory:
 Details for each step: [CONTRIBUTING.md](CONTRIBUTING.md). Platform guides: [Quickstart](https://mcp.aiwcorpo.pl/2.0/developers/quickstart/),
 [Write a server from the template](https://mcp.aiwcorpo.pl/2.0/developers/guides/server-from-template/#write-a-tool).
 
+## Tools only
+
+A server built on `mcp-platform-starter` 5.0.0 serves tools. It does not declare resources, prompts, completions or logging, and answers
+`resources/*`, `prompts/*`, `completion/*` and `logging/*` with -32601; a `Sync*Specification` bean (also in a list), a listed resource or
+prompt, or `spring.ai.mcp.server.capabilities.resource`, `.prompt` or `.completion` set to `true` stops the server at startup. The manifest
+says `contractsVersion: "8.0.0"`, which is what makes the gateway send `resource`, `pty`, `act` and `allowedAgentClients` to the server.
+An agent is let in only from a client the administrator lists in `allowedAgentClients`; Cedar policies see `context.principalType`
+(`user`, `agent`, `delegated`) and can forbid agents.
+
 ## Tools of the sample server
 
 Shown to a client as `example__<name>`. Reading needs the group `mcp-example-read`, writing `mcp-example-write`.

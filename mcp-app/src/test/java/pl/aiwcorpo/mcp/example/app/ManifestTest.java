@@ -169,6 +169,15 @@ class ManifestTest extends ServerTestSupport {
     }
 
     @Test
+    void theManifestSaysItWasBuiltOnContracts8SoTheGatewayEmitsTheNewClaims() throws Exception {
+        assertThat(manifest().path("contractsVersion").asString()).isEqualTo("8.0.0");
+        assertThat(JSON.readTree(ManifestExport.manifest()).path("contractsVersion").asString()).as("the file registered at the gateway").isEqualTo("8.0.0");
+        assertThat(manifest().has("prompts")).as("a server has no prompts until the starter wraps them").isFalse();
+        assertThat(manifest().has("resources")).isFalse();
+        assertThat(manifest().has("resourceTemplates")).isFalse();
+    }
+
+    @Test
     void theManifestIsServedWithoutAuthentication() throws Exception {
         String path = "/.well-known/mcp-manifest";
         assertThat(get(path, Map.of()).statusCode()).isEqualTo(200);
